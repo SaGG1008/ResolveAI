@@ -1,0 +1,29 @@
+[
+  {
+    "id": "INC-8120",
+    "title": "VPN drops intermittently on macOS 15.1",
+    "description": "User reported VPN keeps disconnecting after waking from sleep.",
+    "root_cause": "Dead session lock in Palo Alto gateway session table.",
+    "resolution_action": "reset_vpn_session",
+    "outcome": "Resolved successfully after session reset and client reconnect.",
+    "tags": ["vpn", "disconnect", "session", "macos"]
+  },
+  {
+    "id": "INC-7441",
+    "title": "Git clone fails on internal mirror port 8080",
+    "description": "Connection refused when attempting to pull internal repo from git.corp.internal:8080.",
+    "root_cause": "auth_proxy daemon crashed due to high memory footprint.",
+    "resolution_action": "restart_service(auth_proxy)",
+    "outcome": "Service restarted following Tier-2 approval; port 8080 reopened.",
+    "tags": ["git", "proxy", "port 8080", "connection refused", "auth_proxy"]
+  },
+  {
+    "id": "INC-6990",
+    "title": "Laptop purple artifacts and kernel crash",
+    "description": "Screen distorted and crashed with kernel code 0x889FA.",
+    "root_cause": "Faulty GPU solder / hardware memory error.",
+    "resolution_action": "create_jira_escalation_ticket",
+    "outcome": "Escalated to Tier-2 Hardware Provisioning for replacement laptop.",
+    "tags": ["screen", "purple", "kernel", "0x889fa", "hardware"]
+  }
+]

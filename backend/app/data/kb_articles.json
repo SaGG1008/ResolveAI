@@ -1,0 +1,37 @@
+[
+  {
+    "id": "KB-104",
+    "title": "Resolving GlobalProtect VPN Stale Session Locks",
+    "content": "When a client drops abruptly, the gateway may retain a ghost session. Error message: 'Authentication Session Expired' or repeated disconnects every 5 minutes. Resolution: Run reset_vpn_session to clear the dead token, then reconnect client.",
+    "category": "VPN",
+    "tags": ["vpn", "globalprotect", "disconnect", "session", "expired", "network"]
+  },
+  {
+    "id": "KB-208",
+    "title": "Flushing Corrupted DNS Resolver Cache",
+    "content": "Local DNS cache corruption causes intermittent resolution failures for internal company domains (*.internal.corp). Resolution: Execute flush_dns_cache to purge resolver table.",
+    "category": "Network",
+    "tags": ["dns", "lookup", "resolution", "internal", "domain", "network"]
+  },
+  {
+    "id": "KB-318",
+    "title": "Internal Engineering Auth Proxy Service Recovery",
+    "content": "If internal git mirrors or artifact registries reject connection on port 8080, verify if local auth_proxy daemon crashed with exit code 137 (OOM). Procedure requires restarting auth_proxy service. This is a medium-risk operational change.",
+    "category": "Services",
+    "tags": ["proxy", "auth_proxy", "git", "port 8080", "connection refused", "service"]
+  },
+  {
+    "id": "KB-412",
+    "title": "Handling Hardware Memory Parity & Kernel Panics",
+    "content": "Kernel stop code 0x889FA or flickering color bands indicate physical VRAM or ECC memory hardware degradation. Automated remediation is NOT possible. Immediately escalate to Tier-2 Hardware Provisioning for machine swap.",
+    "category": "Hardware",
+    "tags": ["kernel", "panic", "screen", "flickering", "purple", "memory", "hardware", "0x889fa"]
+  },
+  {
+    "id": "KB-501",
+    "title": "SaaS SSO Token Refresh & Okta Session Renewal",
+    "content": "When single sign-on apps continuously loop on the login screen, invalidate user auth token cache and re-prompt authentication.",
+    "category": "Authentication",
+    "tags": ["sso", "okta", "token", "login", "loop", "authentication"]
+  }
+]

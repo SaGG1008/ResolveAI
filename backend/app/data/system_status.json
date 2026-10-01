@@ -1,0 +1,32 @@
+{
+  "services": [
+    {
+      "id": "vpn_gw_us_east",
+      "name": "VPN Gateway (US-East)",
+      "status": "OPERATIONAL",
+      "active_sessions": 1420,
+      "stale_locks_detected": 1,
+      "latency_ms": 24
+    },
+    {
+      "id": "auth_proxy_daemon",
+      "name": "Internal Auth Proxy (Port 8080)",
+      "status": "DEGRADED",
+      "last_crash": "Exit Code 137 (OOM)",
+      "uptime": "0 min",
+      "latency_ms": 0
+    },
+    {
+      "id": "sso_provider",
+      "name": "Okta Enterprise SSO",
+      "status": "OPERATIONAL",
+      "latency_ms": 42
+    },
+    {
+      "id": "dns_resolver",
+      "name": "Internal Core DNS",
+      "status": "OPERATIONAL",
+      "latency_ms": 8
+    }
+  ]
+}
