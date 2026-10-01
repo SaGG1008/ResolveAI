@@ -282,8 +282,12 @@ async def approve_incident_action(incident_id: str, approved: bool = True, opera
             sse_manager.emit_state_changed(incident_id, "executing", "verifying", "Verifying resolution")
             audit_trail.log_state_transition(incident_id, "executing", "verifying", "Tool execution succeeded")
 
-            # Run verification tool
-            verify_result = tool_registry.execute_tool("verify_resolution")
+            # Run verification tool with issue_type and action_taken
+            verify_result = tool_registry.execute_tool(
+                "verify_resolution",
+                issue_type=incident["category"],
+                action_taken=approval_request.tool_name
+            )
 
             if verify_result.success:
                 incident["status"] = "resolved"
@@ -513,8 +517,12 @@ async def analyze_incident(incident_id: str):
                 sse_manager.emit_state_changed(incident_id, "executing", "verifying", "Verifying resolution")
                 audit_trail.log_state_transition(incident_id, "executing", "verifying", "Tool execution succeeded")
 
-                # Run verification tool
-                verify_result = tool_registry.execute_tool("verify_resolution")
+                # Run verification tool with issue_type and action_taken
+                verify_result = tool_registry.execute_tool(
+                    "verify_resolution",
+                    issue_type=incident["category"],
+                    action_taken=result["action"].tool
+                )
 
                 if verify_result.success:
                     incident["status"] = "resolved"

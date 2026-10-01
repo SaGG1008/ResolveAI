@@ -9,7 +9,7 @@ Implements the approval mechanism for high-risk tool execution:
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from enum import Enum
 import uuid
@@ -107,7 +107,7 @@ class ApprovalGate:
             action_description=action_description,
             reason=reason,
             evidence_summary=evidence_summary or [],
-            created_at=datetime.utcnow().isoformat() + "Z",
+            created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )
 
         # Store in pending requests
@@ -143,7 +143,7 @@ class ApprovalGate:
         request.status = ApprovalStatus.APPROVED
         request.operator_id = operator_id
         request.operator_notes = operator_notes
-        request.approved_at = datetime.utcnow().isoformat() + "Z"
+        request.approved_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         # Move to history
         self.approval_history.append(request)
@@ -176,7 +176,7 @@ class ApprovalGate:
         request.status = ApprovalStatus.REJECTED
         request.operator_id = operator_id
         request.operator_notes = f"REJECTED: {rejection_reason}"
-        request.approved_at = datetime.utcnow().isoformat() + "Z"
+        request.approved_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         # Move to history
         self.approval_history.append(request)
