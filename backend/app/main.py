@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from .core import env_loader # auto-loads .env and .env.local
 from .api.incidents import router as incidents_router
 from .api.dashboard import router as dashboard_router
 from .api.system import router as system_router
