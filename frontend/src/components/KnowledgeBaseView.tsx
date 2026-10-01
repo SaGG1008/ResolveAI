@@ -62,18 +62,15 @@ export const KnowledgeBaseView: React.FC = () => {
   });
 
   return (
-    <div className="p-6 space-y-6 max-w-[1400px] mx-auto text-slate-200">
+    <div className="p-8 space-y-6 max-w-[1400px] mx-auto text-slate-800 font-sans">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <span>Knowledge Base & Autonomous Runbooks</span>
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-950/80 border border-blue-800 text-blue-400">
-              RAG Corpus
-            </span>
+          <h1 className="text-xl font-bold text-slate-900">
+            Knowledge Base & Help Articles
           </h1>
-          <p className="text-xs text-slate-400 font-mono mt-1">
-            Standard operating procedures indexed for real-time investigation and automated resolution.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Verified enterprise troubleshooting runbooks and standard operating procedures.
           </p>
         </div>
 
@@ -82,21 +79,21 @@ export const KnowledgeBaseView: React.FC = () => {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search runbooks by keyword, tag, or ID..."
-          className="w-full sm:w-72 bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 placeholder:text-slate-500"
+          placeholder="Search articles by keyword or tag..."
+          className="w-full sm:w-72 bg-white border border-slate-200 text-xs text-slate-800 rounded-lg px-3.5 py-2 focus:outline-none focus:border-blue-500 placeholder:text-slate-400 shadow-xs"
         />
       </div>
 
-      {/* Category Pills */}
+      {/* Category Filter Pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
         {categories.map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`px-3 py-1.5 rounded-lg font-mono text-[11px] transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
               selectedCategory === cat
-                ? 'bg-blue-600 text-white font-bold'
-                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900'
             }`}
           >
             {cat}
@@ -107,18 +104,20 @@ export const KnowledgeBaseView: React.FC = () => {
       {/* Articles Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filtered.map((art) => (
-          <div key={art.id} className="bg-[#0e1320] border border-slate-800 rounded-xl p-5 shadow-sm space-y-3">
+          <div key={art.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-2.5 hover:border-slate-300 transition">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono font-bold text-blue-400">{art.id}</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 border border-slate-700 text-slate-300">
+              <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                {art.id}
+              </span>
+              <span className="px-2 py-0.5 rounded text-[11px] bg-slate-100 border border-slate-200 text-slate-600">
                 {art.category}
               </span>
             </div>
-            <h3 className="text-sm font-bold text-white">{art.title}</h3>
-            <p className="text-xs text-slate-300 leading-relaxed font-sans">{art.content}</p>
-            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-800/80">
+            <h3 className="text-sm font-bold text-slate-900">{art.title}</h3>
+            <p className="text-xs text-slate-600 leading-relaxed">{art.content}</p>
+            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
               {art.tags.map((t) => (
-                <span key={t} className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-950 border border-slate-800 text-slate-400">
+                <span key={t} className="px-2 py-0.5 rounded text-[10px] bg-slate-50 border border-slate-200 text-slate-500">
                   #{t}
                 </span>
               ))}

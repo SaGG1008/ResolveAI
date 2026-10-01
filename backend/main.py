@@ -7,11 +7,14 @@ import json
 import os
 
 from agents import IncidentOrchestrator
+from tools import ToolRegistry, RiskPolicy, RiskLevel
 
 app = FastAPI(title="ResolveAI API", version="1.0.0")
 
-# Initialize orchestrator
+# Initialize components
 orchestrator = IncidentOrchestrator()
+tool_registry = ToolRegistry()
+risk_policy = RiskPolicy()
 
 # CORS configuration for frontend
 app.add_middleware(
@@ -295,6 +298,35 @@ async def analyze_incident(incident_id: str):
     incident["updatedAt"] = datetime.now()
 
     return incident
+
+@app.get("/api/tools")
+async def list_tools():
+    """List all available tools in the registry."""
+    return tool_registry.list_tools()
+
+@app.get("/api/tools/by-category")
+async def get_tools_by_category():
+    """Get tools organized by category."""
+    return tool_registry.get_tools_by_category()
+
+@app.post("/api/tools/execute")
+async def execute_tool(name: str, **kwargs):
+    """
+    Execute a tool with validated inputs.
+
+    - name: Tool name to execute
+    - Additional parameters specific to the tool
+
+    Returns:
+        Standardized ToolResult
+    """
+    try:
+        result = tool_registry.execute_tool(name, **kwargs)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tool execution failed: {str(e)}")
 
 @app.get("/")
 async def root():

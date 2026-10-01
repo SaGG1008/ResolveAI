@@ -10,60 +10,60 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   title,
-  subtitle = "Autonomous IT Operations",
+  subtitle = "How can we help you today?",
   onNewIncident,
   searchQuery = '',
   onSearchChange,
 }) => {
   return (
-    <header className="h-16 border-b border-slate-800/80 bg-[#090d16]/90 backdrop-blur px-6 flex items-center justify-between shrink-0 z-10">
-      {/* Title & Context */}
-      <div className="flex items-center gap-4">
-        <div>
-          <div className="text-base font-bold text-slate-100 flex items-center gap-2">
-            {title}
-          </div>
-          <div className="text-[11px] text-slate-400 font-mono">
-            {subtitle}
-          </div>
-        </div>
+    <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0 z-10">
+      {/* Title / Greeting */}
+      <div>
+        <h1 className="text-base font-bold text-slate-900 leading-tight">
+          {title}
+        </h1>
+        <p className="text-xs text-slate-500">
+          {subtitle}
+        </p>
       </div>
 
-      {/* Live System Telemetry Chips & Actions */}
-      <div className="flex items-center gap-3">
-        {/* Search Bar */}
+      {/* Right Controls */}
+      <div className="flex items-center gap-4">
+        {/* Search */}
         {onSearchChange && (
           <div className="relative">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search incidents, tools, KB..."
-              className="w-56 bg-slate-900/90 border border-slate-700/80 text-slate-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500 transition placeholder:text-slate-500"
+              placeholder="Search help, tickets, or services..."
+              className="w-64 bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:bg-white focus:border-blue-500 transition placeholder:text-slate-400"
             />
-            <span className="absolute right-2.5 top-2 text-slate-500 text-xs">🔍</span>
+            <span className="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
           </div>
         )}
 
-        {/* Live Status Badge */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-emerald-400 text-xs font-mono">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>AI Engine Operational</span>
-        </div>
-
-        <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-xs font-mono">
-          <span className="text-emerald-400">●</span>
-          <span>8/8 Services Healthy</span>
+        {/* Operational Status Badge */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>All Systems Operational</span>
         </div>
 
         {/* Primary CTA */}
         <button
           onClick={onNewIncident}
-          className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center gap-1.5 shadow-sm shadow-blue-600/30 border border-blue-400/30 active:scale-95"
+          className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition shadow-sm active:scale-95 flex items-center gap-1.5"
         >
           <span>+</span>
-          <span>New Incident</span>
+          <span>Report an Issue</span>
         </button>
+
+        {/* User Profile Avatar */}
+        <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+          <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center font-bold text-slate-700 text-xs">
+            SS
+          </div>
+        </div>
       </div>
     </header>
   );

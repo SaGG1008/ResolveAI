@@ -11,22 +11,25 @@ import { api } from './services/api';
 
 const DEMO_TEMPLATES = [
   {
-    title: "Scenario 1: VPN Session Lock (Auto-Resolution)",
+    title: "VPN Session Disconnects",
     desc: "My VPN keeps dropping every 5 minutes and says authentication session expired.",
     priority: "high",
-    category: "Network / VPN"
+    category: "VPN / Network",
+    icon: "🌐"
   },
   {
-    title: "Scenario 2: Auth Proxy Crash (Human Approval Gate)",
+    title: "Auth Proxy Service Crash",
     desc: "Cannot reach internal git repo; port 8080 connection refused on auth proxy daemon.",
     priority: "medium",
-    category: "Services"
+    category: "Services",
+    icon: "🔒"
   },
   {
-    title: "Scenario 3: Hardware Memory Crash (Tier-2 Escalation)",
+    title: "Laptop Kernel Panic / Hardware Crash",
     desc: "Laptop screen started flickering purple then immediately threw kernel panic stop code 0x889FA.",
     priority: "critical",
-    category: "Hardware"
+    category: "Hardware",
+    icon: "💻"
   }
 ];
 
@@ -147,7 +150,7 @@ function App() {
   ).length;
 
   return (
-    <div className="flex h-screen bg-[#0b0f19] text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       {/* 1. SIDEBAR */}
       <Sidebar
         currentPage={currentPage}
@@ -157,7 +160,7 @@ function App() {
       />
 
       {/* 2. MAIN APPLICATION WORKSPACE */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
         {selectedIncident ? (
           <IncidentWorkspace
             incident={selectedIncident}
@@ -165,24 +168,30 @@ function App() {
           />
         ) : (
           <>
-            {/* Command Center Header */}
+            {/* Header */}
             <Header
               title={
-                currentPage === 'dashboard' ? 'Command Center Overview' :
-                currentPage === 'incidents' ? 'Active Incident Queue' :
-                currentPage === 'agent_activity' ? 'Autonomous Agent Telemetry' :
+                currentPage === 'dashboard' ? 'IT Service Desk' :
+                currentPage === 'incidents' ? 'Incident Management Queue' :
+                currentPage === 'my_requests' ? 'My Submitted Requests' :
                 currentPage === 'knowledge_base' ? 'Knowledge Base & Runbooks' :
-                'Infrastructure & Service Health'
+                'Corporate Service Status'
               }
-              subtitle="ResolveAI Autonomous IT Service Desk"
+              subtitle={
+                currentPage === 'dashboard' ? 'Good afternoon, Sagar · How can we help you today?' :
+                currentPage === 'incidents' ? 'All employee tickets and autonomous investigation statuses' :
+                currentPage === 'my_requests' ? 'Track status and updates on your reported IT issues' :
+                currentPage === 'knowledge_base' ? 'Standard operating procedures and troubleshooting guides' :
+                'Real-time operational status for corporate IT services'
+              }
               onNewIncident={handleNewIncidentClick}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
             />
 
             {/* View Switching */}
-            <main className="flex-1 overflow-y-auto bg-[#0b0f19]">
-              {currentPage === 'dashboard' || currentPage === 'incidents' || currentPage === 'agent_activity' ? (
+            <main className="flex-1 overflow-y-auto bg-slate-50">
+              {currentPage === 'dashboard' || currentPage === 'incidents' || currentPage === 'my_requests' ? (
                 <Dashboard
                   metrics={metrics}
                   incidents={filteredIncidents}
@@ -199,32 +208,32 @@ function App() {
         )}
       </div>
 
-      {/* 3. NEW INCIDENT MODAL / DRAWER */}
+      {/* 3. REPORT AN ISSUE MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#0e1320] border border-slate-700/80 rounded-2xl shadow-2xl max-w-xl w-full p-6 text-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-xl w-full p-6 text-slate-900">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold text-lg">
                   +
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Create New IT Incident</h3>
-                  <p className="text-[11px] text-slate-400 font-mono">Dispatches autonomous multi-agent investigation</p>
+                  <h3 className="text-base font-bold text-slate-900">Report an IT Problem</h3>
+                  <p className="text-xs text-slate-500">ResolveAI will investigate and start diagnostics immediately</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white font-bold p-1"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
               >
                 ✕
               </button>
             </div>
 
-            {/* Quick Demo Templates */}
-            <div className="mt-4">
-              <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-2">
-                Quick Demo Scenario Presets
+            {/* Common Incident Presets for Fast Testing */}
+            <div className="mt-5">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
+                Common IT Scenarios (Quick Select)
               </div>
               <div className="space-y-2">
                 {DEMO_TEMPLATES.map((tmpl, idx) => (
@@ -232,45 +241,48 @@ function App() {
                     key={idx}
                     onClick={() => handleCreateScenario(tmpl)}
                     disabled={isCreating}
-                    className="w-full text-left p-3 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-blue-500/80 hover:bg-blue-950/20 transition flex flex-col gap-1 group active:scale-[0.99]"
+                    className="w-full text-left p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:border-blue-300 hover:bg-blue-50/40 transition flex items-start gap-3 group active:scale-[0.99]"
                   >
-                    <div className="font-semibold text-xs text-slate-200 group-hover:text-blue-300 transition flex items-center justify-between">
-                      <span>{tmpl.title}</span>
-                      <span className="text-[10px] font-mono text-slate-500 group-hover:text-blue-400">Launch →</span>
+                    <span className="text-xl shrink-0 mt-0.5">{tmpl.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-xs text-slate-900 group-hover:text-blue-700 transition flex items-center justify-between">
+                        <span>{tmpl.title}</span>
+                        <span className="text-xs text-blue-600 font-medium">Select →</span>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{tmpl.desc}</div>
                     </div>
-                    <div className="text-[11px] text-slate-400 line-clamp-1">{tmpl.desc}</div>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Custom Issue Description */}
-            <form onSubmit={handleCreateCustom} className="mt-5 pt-4 border-t border-slate-800 space-y-3">
-              <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-                Or Enter Custom Employee Issue
-              </div>
+            {/* Custom Problem Description */}
+            <form onSubmit={handleCreateCustom} className="mt-5 pt-4 border-t border-slate-200 space-y-3">
+              <label className="block text-xs font-semibold text-slate-700">
+                Or describe your IT problem in your own words
+              </label>
               <textarea
                 value={customDescription}
                 onChange={(e) => setCustomDescription(e.target.value)}
-                placeholder="Describe the employee IT problem in natural language (e.g. 'My email stopped syncing on Outlook after password reset')..."
+                placeholder="E.g., My VPN keeps disconnecting when I try to open Jira, or Outlook won't sync emails..."
                 rows={3}
-                className="w-full p-3 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500 placeholder:text-slate-500 resize-none leading-relaxed"
+                className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-slate-400 resize-none leading-relaxed"
               />
-              <div className="flex justify-end gap-2.5 pt-1">
+              <div className="flex justify-end gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   disabled={isCreating}
-                  className="px-4 py-2 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isCreating || !customDescription.trim()}
-                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-md shadow-blue-600/30 transition disabled:opacity-50 active:scale-95"
+                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition disabled:opacity-50 active:scale-95"
                 >
-                  {isCreating ? 'Dispatching Agents...' : 'Start Autonomous Investigation'}
+                  {isCreating ? 'Submitting...' : 'Submit Request'}
                 </button>
               </div>
             </form>

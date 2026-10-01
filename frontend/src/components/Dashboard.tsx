@@ -1,375 +1,337 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Incident, DashboardMetrics, AgentEvent } from '../types';
-import { AgentPipelineBar } from './AgentPipelineBar';
 
 interface DashboardProps {
   metrics: DashboardMetrics;
   incidents: Incident[];
   onIncidentClick: (incident: Incident) => void;
   onNewIncident: () => void;
+  onSelectCategory?: (category: string) => void;
 }
+
+const COMMON_CATEGORIES = [
+  { icon: "🌐", label: "VPN & Network", cat: "Network / VPN" },
+  { icon: "📧", label: "Email & Outlook", cat: "Services" },
+  { icon: "🔐", label: "Password & Account", cat: "Authentication" },
+  { icon: "💻", label: "Computer & OS", cat: "Hardware" },
+  { icon: "🔑", label: "Access & Permissions", cat: "Authentication" },
+  { icon: "🖨", label: "Printers & Devices", cat: "Hardware" },
+];
 
 export const Dashboard: React.FC<DashboardProps> = ({
   metrics,
   incidents,
   onIncidentClick,
   onNewIncident,
+  onSelectCategory,
 }) => {
-  // Find the most relevant active incident (investigating or pending approval) for the spotlight card
-  const activeIncident = incidents.find(
-    i => i.status === 'investigating' || i.status === 'diagnosed' || i.status === 'pending_approval' || i.status === 'executing'
-  ) || incidents[0];
+  const [filterTab, setFilterTab] = useState<'all' | 'open' | 'waiting' | 'resolved'>('all');
 
-  // Aggregate recent agent events across all incidents for the AI Operations Feed
-  const recentAgentEvents: { event: AgentEvent; incidentId: string }[] = [];
+  // Filter incidents based on active tab
+  const filteredIncidents = incidents.filter(inc => {
+    if (filterTab === 'open') return inc.status === 'investigating' || inc.status === 'diagnosed' || inc.status === 'open';
+    if (filterTab === 'waiting') return inc.status === 'pending_approval' || inc.status === 'escalated';
+    if (filterTab === 'resolved') return inc.status === 'resolved';
+    return true;
+  });
+
+  // Recent activity list
+  const recentEvents: { event: AgentEvent; incident: Incident }[] = [];
   incidents.forEach(inc => {
     (inc.events || []).forEach(evt => {
-      recentAgentEvents.push({
-        event: evt,
-        incidentId: inc.id,
-      });
+      recentEvents.push({ event: evt, incident: inc });
     });
   });
-  // Sort descending by timestamp
-  recentAgentEvents.sort((a, b) => b.event.timestamp.getTime() - a.event.timestamp.getTime());
-  const topAgentEvents = recentAgentEvents.slice(0, 5);
+  recentEvents.sort((a, b) => b.event.timestamp.getTime() - a.event.timestamp.getTime());
+  const topRecent = recentEvents.slice(0, 5);
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case 'critical':
-        return 'bg-rose-950/60 text-rose-300 border-rose-800/80 font-bold';
+        return 'bg-red-50 text-red-700 border-red-200';
       case 'high':
-        return 'bg-amber-950/60 text-amber-300 border-amber-800/80 font-semibold';
+        return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'medium':
-        return 'bg-blue-950/60 text-blue-300 border-blue-800/80';
+        return 'bg-blue-50 text-blue-700 border-blue-200';
       default:
-        return 'bg-slate-800/80 text-slate-300 border-slate-700';
+        return 'bg-slate-50 text-slate-600 border-slate-200';
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'resolved':
-        return 'bg-emerald-950/60 text-emerald-300 border-emerald-800/80';
+        return { label: 'Resolved', style: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
       case 'escalated':
-        return 'bg-rose-950/60 text-rose-300 border-rose-800/80';
+        return { label: 'Needs IT Support', style: 'bg-red-50 text-red-700 border-red-200' };
       case 'pending_approval':
-        return 'bg-amber-950/60 text-amber-300 border-amber-800/80 animate-pulse';
+        return { label: 'Waiting for Approval', style: 'bg-amber-50 text-amber-800 border-amber-300 font-semibold' };
       case 'executing':
+        return { label: 'Applying Fix', style: 'bg-blue-50 text-blue-700 border-blue-200' };
       case 'verifying':
-        return 'bg-indigo-950/60 text-indigo-300 border-indigo-800/80';
+        return { label: 'Verifying Fix', style: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
       case 'investigating':
       case 'diagnosed':
-        return 'bg-blue-950/60 text-blue-300 border-blue-800/80';
+        return { label: 'AI Investigating', style: 'bg-blue-50 text-blue-700 border-blue-200' };
       default:
-        return 'bg-slate-800/80 text-slate-400 border-slate-700';
-    }
-  };
-
-  const getAgentLabel = (agent: string) => {
-    switch (agent) {
-      case 'triage':
-        return 'Triage Agent';
-      case 'investigation':
-        return 'Investigation Agent';
-      case 'diagnosis':
-        return 'Diagnosis Agent';
-      case 'action_planner':
-        return 'Action Planner';
-      case 'verification':
-        return 'Verification Agent';
-      default:
-        return 'Autonomous Agent';
+        return { label: 'Open', style: 'bg-slate-50 text-slate-700 border-slate-200' };
     }
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
-      {/* 1. TOP OPERATIONAL KPI CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Active Incidents */}
-        <div className="bg-[#0e1320] border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-            <span>ACTIVE INCIDENTS</span>
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+    <div className="p-8 space-y-6 max-w-[1400px] mx-auto text-slate-800">
+      {/* 1. EMPLOYEE "HOW CAN WE HELP?" HERO SECTION */}
+      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">How can we help you today?</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Search for common IT issues or report a problem for automated diagnosis and resolution.
+            </p>
           </div>
-          <div className="my-2 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white font-mono">{metrics.activeIncidents}</span>
-            <span className="text-[11px] font-mono text-blue-400 font-medium">investigating</span>
+          <button
+            onClick={onNewIncident}
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition active:scale-95 shrink-0"
+          >
+            + Report an IT Issue
+          </button>
+        </div>
+
+        {/* Quick Category Tiles */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
+          {COMMON_CATEGORIES.map((item, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                if (onSelectCategory) onSelectCategory(item.cat);
+                onNewIncident();
+              }}
+              className="p-3 bg-slate-50 hover:bg-blue-50/60 border border-slate-200 hover:border-blue-200 rounded-lg text-left transition flex items-center gap-2.5 group"
+            >
+              <span className="text-lg">{item.icon}</span>
+              <span className="text-xs font-medium text-slate-700 group-hover:text-blue-700">
+                {item.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. COMPACT SUPPORT OVERVIEW METRICS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            Open Incidents
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800/60 pt-2 mt-1">
-            <span>Live autonomous queue</span>
-            <span className="text-slate-300 font-mono">0 pending queue</span>
+          <div className="text-2xl font-bold text-slate-900 mt-1">
+            {metrics.activeIncidents}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            Currently being investigated
           </div>
         </div>
 
-        {/* Card 2: AI Resolutions */}
-        <div className="bg-[#0e1320] border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-            <span>AI RESOLUTIONS</span>
-            <span className="text-emerald-400 text-xs font-bold">✓ 92%</span>
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            Resolved by AI
           </div>
-          <div className="my-2 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white font-mono">{metrics.aiResolutions}</span>
-            <span className="text-[11px] font-mono text-emerald-400 font-medium">auto-resolved</span>
+          <div className="text-2xl font-bold text-emerald-600 mt-1">
+            {metrics.aiResolutions}
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800/60 pt-2 mt-1">
-            <span>Avg resolution time</span>
-            <span className="text-emerald-400 font-mono">{metrics.avgResolutionTime}m</span>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            Avg time: {metrics.avgResolutionTime} mins
           </div>
         </div>
 
-        {/* Card 3: Human Escalations */}
-        <div className="bg-[#0e1320] border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-            <span>HUMAN ESCALATIONS</span>
-            <span className="text-amber-400 text-xs font-mono">12.5% rate</span>
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            Waiting for Approval
           </div>
-          <div className="my-2 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white font-mono">{metrics.escalations}</span>
-            <span className="text-[11px] font-mono text-amber-400 font-medium">tier-2 review</span>
+          <div className="text-2xl font-bold text-amber-600 mt-1">
+            {incidents.filter(i => i.status === 'pending_approval').length}
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800/60 pt-2 mt-1">
-            <span>Safety containment</span>
-            <span className="text-slate-300 font-mono">100% policy strict</span>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            Requires operator authorization
           </div>
         </div>
 
-        {/* Card 4: System Health */}
-        <div className="bg-[#0e1320] border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-            <span>SYSTEM HEALTH</span>
-            <span className="text-emerald-400 font-mono font-bold">● 99.8%</span>
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+            Needs Human Review
           </div>
-          <div className="my-2 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-white font-mono">8 / 8</span>
-            <span className="text-[11px] font-mono text-emerald-400 font-medium">services online</span>
+          <div className="text-2xl font-bold text-slate-800 mt-1">
+            {metrics.escalations}
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800/60 pt-2 mt-1">
-            <span>Gateway telemetry</span>
-            <span className="text-emerald-400 font-mono">24ms latency</span>
+          <div className="text-[11px] text-slate-500 mt-0.5">
+            Tier-2 support handover
           </div>
         </div>
       </div>
 
-      {/* 2. AGENT PIPELINE VISUALIZATION */}
-      <div>
-        <div className="text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
-          <span>Multi-Agent Autonomous Pipeline Execution Flow</span>
-          <span className="text-blue-400">Deterministic Guardrails Enabled</span>
-        </div>
-        <AgentPipelineBar currentStatus={activeIncident ? activeIncident.status : 'open'} />
-      </div>
-
-      {/* 3. MAIN COMMAND CENTER GRID (Balanced 2-Column Layout) */}
+      {/* 3. MAIN WORKSPACE: INCIDENT QUEUE & RECENT ACTIVITY */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* LEFT COLUMN: Spotlight Card + Recent Incident Queue (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Spotlight: Currently Investigating */}
-          {activeIncident && (
-            <div className="bg-[#0e1320] border border-blue-900/50 rounded-xl p-5 shadow-md relative overflow-hidden">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping"></span>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-blue-400">
-                    Live Incident Spotlight
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 border border-slate-700 text-slate-200">
-                    {activeIncident.id}
-                  </span>
-                </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono border ${getStatusBadge(activeIncident.status)}`}>
-                  {activeIncident.status.replace(/_/g, ' ').toUpperCase()}
-                </span>
-              </div>
-
-              <div className="mt-4">
-                <h3 className="text-base font-bold text-white mb-1.5">{activeIncident.title}</h3>
-                <p className="text-xs text-slate-300 line-clamp-2 mb-4 leading-relaxed">
-                  {activeIncident.description}
-                </p>
-
-                {/* Hypothesis & Evidence Summary */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                  <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
-                    <div className="text-[10px] font-mono text-slate-400 uppercase mb-1">Current Diagnosis</div>
-                    <div className="text-xs font-semibold text-cyan-300">
-                      {activeIncident.diagnosis?.likelyCause || "Analyzing logs and correlates..."}
-                    </div>
-                  </div>
-                  <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
-                    <div className="text-[10px] font-mono text-slate-400 uppercase mb-1">Grounded Evidence</div>
-                    <div className="text-xs font-semibold text-emerald-300 flex items-center justify-between">
-                      <span>{activeIncident.evidence?.length || 0} verified sources</span>
-                      {activeIncident.diagnosis && (
-                        <span className="font-mono text-[11px] text-cyan-400">{activeIncident.diagnosis.confidence}% conf</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* CTA Action */}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    Assigned: <span className="text-slate-200 font-semibold">{activeIncident.category}</span>
-                  </div>
-                  <button
-                    onClick={() => onIncidentClick(activeIncident)}
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center gap-1.5 shadow-sm shadow-blue-500/20 active:scale-95"
-                  >
-                    <span>Inspect Investigation Workspace</span>
-                    <span>→</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Incident Queue Table */}
-          <div className="bg-[#0e1320] border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        {/* Left Column: Incident Queue Table (8 cols) */}
+        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col justify-between">
+          <div>
+            <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-bold text-white tracking-wide">Incident Queue</h3>
-                <p className="text-[11px] text-slate-400 font-mono">Real-time status of all reported workplace incidents</p>
+                <h3 className="text-sm font-bold text-slate-900">Incident Queue</h3>
+                <p className="text-xs text-slate-500">Track and manage workplace IT tickets</p>
               </div>
-              <button
-                onClick={onNewIncident}
-                className="text-xs text-blue-400 hover:text-blue-300 font-mono font-semibold"
-              >
-                + Create
-              </button>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-medium">
+                <button
+                  onClick={() => setFilterTab('all')}
+                  className={`px-3 py-1 rounded-md transition ${filterTab === 'all' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  All ({incidents.length})
+                </button>
+                <button
+                  onClick={() => setFilterTab('open')}
+                  className={`px-3 py-1 rounded-md transition ${filterTab === 'open' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Open
+                </button>
+                <button
+                  onClick={() => setFilterTab('waiting')}
+                  className={`px-3 py-1 rounded-md transition ${filterTab === 'waiting' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Needs Attention
+                </button>
+                <button
+                  onClick={() => setFilterTab('resolved')}
+                  className={`px-3 py-1 rounded-md transition ${filterTab === 'resolved' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Resolved
+                </button>
+              </div>
             </div>
 
+            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-800/80 bg-slate-950/50 text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                  <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-semibold text-slate-600">
                     <th className="px-4 py-3">Incident</th>
                     <th className="px-3 py-3">Priority</th>
-                    <th className="px-3 py-3">Category</th>
                     <th className="px-3 py-3">Status</th>
-                    <th className="px-3 py-3 text-right">Time</th>
+                    <th className="px-3 py-3">Category</th>
+                    <th className="px-3 py-3 text-right">Updated</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 font-sans">
-                  {incidents.map((inc) => (
-                    <tr
-                      key={inc.id}
-                      onClick={() => onIncidentClick(inc)}
-                      className="hover:bg-slate-800/40 cursor-pointer transition group"
-                    >
-                      <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-200 group-hover:text-blue-400 transition flex items-center gap-2">
-                          <span className="font-mono text-xs text-slate-400">{inc.id}</span>
-                          <span className="truncate max-w-[220px]">{inc.title}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-400 truncate max-w-[280px] mt-0.5 font-sans">
-                          {inc.description}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${getPriorityBadge(inc.priority)}`}>
-                          {inc.priority.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3.5 whitespace-nowrap text-slate-300 text-[11px]">
-                        {inc.category}
-                      </td>
-                      <td className="px-3 py-3.5 whitespace-nowrap">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono border ${getStatusBadge(inc.status)}`}>
-                          {inc.status.replace(/_/g, ' ').toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3.5 whitespace-nowrap text-right text-[11px] text-slate-400 font-mono">
-                        {new Date(inc.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-slate-100 font-sans">
+                  {filteredIncidents.map((inc) => {
+                    const statusObj = getStatusBadge(inc.status);
+                    return (
+                      <tr
+                        key={inc.id}
+                        onClick={() => onIncidentClick(inc)}
+                        className="hover:bg-blue-50/40 cursor-pointer transition"
+                      >
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-slate-500 font-medium text-[11px]">{inc.id}</span>
+                            <span className="font-semibold text-slate-900 truncate max-w-[240px]">{inc.title}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate max-w-[300px] mt-0.5">
+                            {inc.description}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3.5 whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded text-[10px] border font-medium ${getPriorityBadge(inc.priority)}`}>
+                            {inc.priority.charAt(0).toUpperCase() + inc.priority.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3.5 whitespace-nowrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] border ${statusObj.style}`}>
+                            {statusObj.label}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3.5 whitespace-nowrap text-slate-600 text-xs">
+                          {inc.category}
+                        </td>
+                        <td className="px-3 py-3.5 whitespace-nowrap text-right text-slate-500 text-[11px]">
+                          {new Date(inc.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Live AI Operations Feed + Live System Health (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
-          {/* AI Operations Center Feed */}
-          <div className="bg-[#0e1320] border border-slate-800 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="text-indigo-400 text-xs">✦</span>
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
-                  AI Operations Stream
-                </h3>
-              </div>
-              <span className="text-[10px] font-mono text-slate-400">Live Telemetry</span>
+        {/* Right Column: Recent Activity & Service Health (4 cols) */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Recent Activity */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Recent Activity
+              </h3>
+              <span className="text-[11px] text-slate-400">Live Updates</span>
             </div>
 
-            <div className="mt-3 space-y-3">
-              {topAgentEvents.map(({ event, incidentId }, idx) => (
-                <div key={event.id || idx} className="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-950/70 border border-blue-800/60 text-blue-300">
-                        {getAgentLabel(event.agent)}
-                      </span>
-                      <span className="text-[10px] font-mono text-slate-400">{incidentId}</span>
+            <div className="space-y-3">
+              {topRecent.map(({ event, incident }, idx) => (
+                <div key={event.id || idx} className="text-xs flex gap-2.5 items-start">
+                  <span className="text-sm mt-0.5">
+                    {event.status === 'completed' ? '✓' : event.status === 'failed' ? '⚠' : '→'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-slate-800 font-medium leading-tight">
+                      {event.message}
                     </div>
-                    <span className="text-[10px] font-mono text-slate-500">
-                      {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </span>
+                    <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1 font-mono">
+                      <span>{incident.id}</span>
+                      <span>•</span>
+                      <span>{new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
                   </div>
-                  <p className="text-slate-300 text-[11px] leading-relaxed">
-                    {event.message}
-                  </p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* System Services Monitor */}
-          <div className="bg-[#0e1320] border border-slate-800 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="text-emerald-400 text-xs">◈</span>
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
-                  System Health & Services
-                </h3>
-              </div>
-              <span className="text-[10px] font-mono text-emerald-400">8 / 8 Online</span>
+          {/* Service Status */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Service Status
+              </h3>
+              <span className="text-[11px] text-emerald-600 font-medium">All Operational</span>
             </div>
 
-            <div className="mt-3 space-y-2 text-xs">
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/60">
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  <span className="text-slate-200 font-medium">VPN Gateway (Palo Alto)</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span className="text-slate-700">VPN Gateway</span>
                 </div>
-                <div className="font-mono text-[11px] text-slate-400">24ms</div>
+                <span className="text-slate-400 text-[11px]">Operational</span>
               </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/60">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                  <span className="text-slate-200 font-medium">Internal Auth Proxy (Port 8080)</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span className="text-slate-700">Email & Outlook</span>
                 </div>
-                <div className="font-mono text-[11px] text-amber-400">Auto-Managed</div>
+                <span className="text-slate-400 text-[11px]">Operational</span>
               </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/60">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  <span className="text-slate-200 font-medium">Okta Enterprise SSO</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span className="text-slate-700">Okta Identity & SSO</span>
                 </div>
-                <div className="font-mono text-[11px] text-slate-400">42ms</div>
+                <span className="text-slate-400 text-[11px]">Operational</span>
               </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/60">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  <span className="text-slate-200 font-medium">Core DNS Resolver</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span className="text-slate-700">Internal Auth Proxy</span>
                 </div>
-                <div className="font-mono text-[11px] text-slate-400">8ms</div>
+                <span className="text-slate-400 text-[11px]">Operational</span>
               </div>
             </div>
           </div>
