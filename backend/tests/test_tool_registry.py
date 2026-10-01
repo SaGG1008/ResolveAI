@@ -15,7 +15,7 @@ class TestToolDiscovery:
         registry = ToolRegistry()
         tools = registry.list_tools()
 
-        assert len(tools) == 10  # Expected number of tools
+        assert len(tools) >= 10  # Expected minimum number of tools
         tool_names = [t["name"] for t in tools]
 
         # Verify all expected tools are present

@@ -214,3 +214,65 @@ class ClearDnsCacheTool(Tool):
                 "last_cleared": "2026-10-01T10:30:00Z",
             },
         )
+
+
+class ClearOutlookCacheToolInput(ToolInputSchema):
+    """Input schema for clear_outlook_cache tool."""
+    user_id: str = "unknown"
+    scope: str = "cache_only"
+
+
+class ClearOutlookCacheTool(Tool):
+    """
+    Clear Outlook cache to resolve sync issues.
+
+    Risk Level: LOW
+    Approval Required: No
+
+    Simulates clearing Outlook cache for email sync issues.
+    """
+
+    name = "clear_outlook_cache"
+    description = "Clear Outlook cache to resolve sync issues"
+    input_schema = ClearOutlookCacheToolInput
+    risk_level = RiskLevel.LOW
+    approval_required = False
+
+    def __init__(self, simulated_state: dict = None):
+        super().__init__(simulated_state)
+
+        if "outlook_cache" not in self.simulated_state:
+            self.simulated_state["outlook_cache"] = {
+                "users": {},
+                "last_cleared": None,
+            }
+
+    def execute(self, user_id: str = "unknown", scope: str = "cache_only") -> ToolResult:
+        """
+        Clear Outlook cache.
+
+        Args:
+            user_id: User identifier
+            scope: Scope of cache clear
+
+        Returns:
+            ToolResult with clear confirmation
+        """
+        if user_id not in self.simulated_state["outlook_cache"]["users"]:
+            self.simulated_state["outlook_cache"]["users"][user_id] = {"cache_size": 0}
+
+        self.simulated_state["outlook_cache"]["users"][user_id]["cache_size"] = 0
+        self.simulated_state["outlook_cache"]["last_cleared"] = "2026-10-01T10:30:00Z"
+
+        return ToolResult(
+            success=True,
+            tool=self.name,
+            status="success",
+            message=f"Outlook cache cleared for user '{user_id}'",
+            data={
+                "user_id": user_id,
+                "scope": scope,
+                "cache_cleared": True,
+                "last_cleared": "2026-10-01T10:30:00Z",
+            },
+        )

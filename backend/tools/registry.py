@@ -13,7 +13,7 @@ from .base import Tool, RiskLevel, ToolResult, ToolResultStatus
 from .risk_policy import risk_policy
 from .knowledge import SearchKnowledgeBaseTool, SearchPreviousTicketsTool, GetTroubleshootingProcedureTool
 from .diagnostics import GetSystemStatusTool
-from .remediation import ResetVpnTokenTool, RestartServiceTool, ClearDnsCacheTool
+from .remediation import ResetVpnTokenTool, RestartServiceTool, ClearDnsCacheTool, ClearOutlookCacheTool
 from .ticketing import CreateTicketTool, EscalateToHumanTool
 from .verification import VerifyResolutionTool
 
@@ -68,6 +68,9 @@ class ToolRegistry:
         )
         self.register_tool(
             ClearDnsCacheTool(self.simulated_state)
+        )
+        self.register_tool(
+            ClearOutlookCacheTool(self.simulated_state)
         )
 
         # Ticketing tools

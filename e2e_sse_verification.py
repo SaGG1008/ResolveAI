@@ -21,10 +21,10 @@ def log(msg, status="INFO"):
 
 def check_server():
     try:
-        req = urllib.request.Request(f"{BASE_URL}/api/system/status")
+        req = urllib.request.Request(f"{BASE_URL}/health")
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read().decode())
-            log(f"FastAPI Server Health: {data.get('status')} ({len(data.get('registered_tools', []))} tools registered)", "SUCCESS")
+            log(f"FastAPI Server Health: {data.get('status')}", "SUCCESS")
             return True
     except Exception as e:
         log(f"Server check failed: {e}", "ERROR")
@@ -67,10 +67,11 @@ def stream_events(incident_id, timeout_sec=15, on_event_callback=None):
     
     return events
 
-def create_incident(title, description, user_id="user_e2e"):
+def create_incident(title, description, category="General IT", user_id="user_e2e"):
     payload = json.dumps({
         "title": title,
         "description": description,
+        "category": category,
         "user_id": user_id
     }).encode('utf-8')
     

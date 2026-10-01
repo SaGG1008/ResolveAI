@@ -1,10 +1,16 @@
 from typing import List
 from ..models.schemas import Diagnosis, Evidence
+from .llm_client import llm_client
 
 class DiagnosisAgent:
     """Synthesizes root cause and confidence based strictly on gathered evidence."""
 
     def run(self, description: str, category: str, evidence: List[Evidence]) -> Diagnosis:
+        # 1. Attempt generative LLM diagnosis if API key is provided
+        llm_diag = llm_client.analyze_incident(description, category, evidence)
+        if llm_diag is not None:
+            return llm_diag
+
         text = f"{description} {category}".lower()
 
         if not evidence:
