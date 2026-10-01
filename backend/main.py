@@ -1,13 +1,18 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 import json
 import os
+import asyncio
 
 from agents import IncidentOrchestrator
 from tools import ToolRegistry, RiskPolicy, RiskLevel
+from sse import sse_manager, SSEEventType
+from approval_gate import approval_gate
+from audit_trail import audit_trail
 
 app = FastAPI(title="ResolveAI API", version="1.0.0")
 
@@ -180,6 +185,7 @@ async def health_check():
     }
 
 @app.get("/api/dashboard-metrics")
+@app.get("/api/dashboard/metrics")
 async def get_dashboard_metrics():
     """Get dashboard KPI metrics"""
     active = sum(1 for i in incidents_db.values() if i["status"] in ["open", "investigating", "diagnosed", "pending_approval", "executing", "verifying"])
@@ -235,15 +241,89 @@ async def create_incident(request: NewIncidentRequest):
     return new_incident
 
 @app.post("/api/incidents/{incident_id}/approve")
-async def approve_incident_action(incident_id: str):
-    """Approve an action for an incident"""
+async def approve_incident_action(incident_id: str, approved: bool = True, operator_id: str = "admin", operator_notes: str = None):
+    """Approve or reject an action for an incident"""
     if incident_id not in incidents_db:
         raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
 
     incident = incidents_db[incident_id]
-    incident["status"] = "executing"
-    incident["updatedAt"] = datetime.now()
 
+    # Get pending approval request
+    approval_request = approval_gate.get_pending_request(incident_id)
+    if not approval_request:
+        raise HTTPException(status_code=400, detail="No pending approval for this incident")
+
+    if approved:
+        # Approve the action
+        approval_gate.approve(incident_id, operator_id, operator_notes)
+        audit_trail.log_approval_granted(incident_id, operator_id, approval_request.tool_name, operator_notes)
+
+        # Emit event
+        sse_manager.emit_trace_event(incident_id, "system", f"Action approved by {operator_id}", "completed")
+        sse_manager.emit_state_changed(incident_id, incident["status"], "executing", "Action approved, executing")
+
+        # Execute the tool
+        incident["status"] = "executing"
+        tool_result = tool_registry.execute_tool(approval_request.tool_name, user_id=incident.get("user_id", "unknown"))
+
+        # Emit tool execution event
+        sse_manager.emit_tool_executed(
+            incident_id,
+            approval_request.tool_name,
+            tool_result.success,
+            tool_result.message,
+            tool_result.data
+        )
+        audit_trail.log_tool_executed(incident_id, approval_request.tool_name, tool_result.success, tool_result.message, tool_result.data)
+
+        if tool_result.success:
+            # Verification
+            incident["status"] = "verifying"
+            sse_manager.emit_state_changed(incident_id, "executing", "verifying", "Verifying resolution")
+            audit_trail.log_state_transition(incident_id, "executing", "verifying", "Tool execution succeeded")
+
+            # Run verification tool
+            verify_result = tool_registry.execute_tool("verify_resolution")
+
+            if verify_result.success:
+                incident["status"] = "resolved"
+                incident["resolution"] = {
+                    "timestamp": datetime.now().isoformat(),
+                    "verificationMethod": "Automated verification",
+                    "success": True
+                }
+                sse_manager.emit_resolution_verified(incident_id, True, "automated", "Resolution verified successfully")
+                audit_trail.log_verification_result(incident_id, True, "automated", "Resolution verified")
+                audit_trail.log_incident_resolved(incident_id, "tool_execution")
+                sse_manager.emit_state_changed(incident_id, "verifying", "resolved", "Resolution verified")
+            else:
+                incident["status"] = "escalated"
+                incident["escalationReason"] = "Verification failed"
+                sse_manager.emit_resolution_verified(incident_id, False, "automated", "Verification failed")
+                audit_trail.log_verification_result(incident_id, False, "automated", "Verification failed")
+                audit_trail.log_incident_escalated(incident_id, "Verification failed")
+                sse_manager.emit_state_changed(incident_id, "verifying", "escalated", "Verification failed")
+        else:
+            incident["status"] = "escalated"
+            incident["escalationReason"] = f"Tool execution failed: {tool_result.message}"
+            sse_manager.emit_state_changed(incident_id, "executing", "escalated", f"Tool failed: {tool_result.message}")
+            audit_trail.log_incident_escalated(incident_id, f"Tool execution failed: {tool_result.message}")
+    else:
+        # Reject the action
+        rejection_reason = operator_notes or "Operator declined"
+        approval_gate.reject(incident_id, operator_id, rejection_reason)
+        audit_trail.log_approval_rejected(incident_id, operator_id, approval_request.tool_name, rejection_reason)
+
+        # Emit event
+        sse_manager.emit_trace_event(incident_id, "system", f"Action rejected by {operator_id}: {rejection_reason}", "completed")
+        sse_manager.emit_state_changed(incident_id, incident["status"], "escalated", f"Approval rejected: {rejection_reason}")
+
+        incident["status"] = "escalated"
+        incident["escalationReason"] = rejection_reason
+        audit_trail.log_incident_escalated(incident_id, f"Approval rejected: {rejection_reason}")
+
+    incident["updatedAt"] = datetime.now()
+    incident["approvalRequired"] = False
     return incident
 
 @app.post("/api/incidents/{incident_id}/escalate")
@@ -253,11 +333,76 @@ async def escalate_incident(incident_id: str, reason: str = "Requires human revi
         raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
 
     incident = incidents_db[incident_id]
+    old_status = incident["status"]
     incident["status"] = "escalated"
     incident["escalationReason"] = reason
     incident["updatedAt"] = datetime.now()
 
+    # Emit SSE event
+    sse_manager.emit_state_changed(incident_id, old_status, "escalated", reason)
+    audit_trail.log_incident_escalated(incident_id, reason)
+
     return incident
+
+
+@app.get("/api/incidents/{incident_id}/stream")
+async def stream_incident_events(incident_id: str):
+    """
+    Server-Sent Events stream for real-time incident lifecycle updates.
+
+    Emits events as the incident progresses through agents and approval gates:
+    - trace_event: Agent processing steps
+    - evidence_discovered: New evidence found
+    - state_changed: Incident state transitions
+    - action_required: Approval gate triggered
+    - tool_executed: Tool execution result
+    - resolution_verified: Verification complete
+    """
+    if incident_id not in incidents_db:
+        raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
+
+    # Subscribe to events
+    sse_manager.subscribe(incident_id)
+    sse_manager.create_queue(incident_id)
+
+    async def event_generator():
+        """Generate SSE events for the incident lifecycle."""
+        last_index = 0
+
+        try:
+            while True:
+                # Get new events since last check
+                events = sse_manager.get_events(incident_id)
+
+                if len(events) > last_index:
+                    # Stream new events
+                    for event in events[last_index:]:
+                        yield event.to_sse_format()
+                    last_index = len(events)
+
+                # Check if incident is in terminal state
+                incident = incidents_db.get(incident_id)
+                if incident and incident["status"] in ["resolved", "escalated"]:
+                    # Send final state update
+                    yield f"event: incident_terminal\ndata: {json.dumps({'status': incident['status']})}\n\n"
+                    break
+
+                # Wait before checking again (reduces CPU usage)
+                await asyncio.sleep(0.5)
+
+        finally:
+            # Unsubscribe from events
+            sse_manager.unsubscribe(incident_id)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        }
+    )
 
 @app.post("/api/incidents/{incident_id}/resolve")
 async def resolve_incident(incident_id: str, verification_method: str = "Automated verification"):
@@ -284,17 +429,128 @@ async def analyze_incident(incident_id: str):
 
     incident = incidents_db[incident_id]
 
+    # Initialize SSE event queue for this incident
+    sse_manager.create_queue(incident_id)
+    audit_trail.log_state_transition(incident_id, incident["status"], "investigating", "Analysis started")
+
+    # Emit event: investigation started
+    sse_manager.emit_trace_event(incident_id, "system", "Starting incident analysis pipeline", "started")
+    sse_manager.emit_state_changed(incident_id, incident["status"], "investigating", "Analysis pipeline initiated")
+
+    # Update incident status
+    old_status = incident["status"]
+    incident["status"] = "investigating"
+    incident["updatedAt"] = datetime.now()
+
     # Run the agent pipeline
     result = orchestrator.process_incident(incident["title"], incident["description"])
+
+    # Emit evidence collection events
+    if result["evidence"]:
+        sse_manager.emit_trace_event(incident_id, "investigation_agent", f"Collected {len(result['evidence'])} evidence items", "completed")
+        audit_trail.log_evidence_collected(incident_id, len(result["evidence"]), [e.source for e in result["evidence"]])
+
+    # Emit diagnosis event
+    if result["diagnosis"]:
+        sse_manager.emit_trace_event(incident_id, "diagnosis_agent", f"Root cause: {result['diagnosis'].likelyCause}", "completed")
+        audit_trail.log_diagnosis_generated(incident_id, result["diagnosis"].likelyCause, result["diagnosis"].confidence)
+
+    # Emit action planning event
+    if result["action"]:
+        sse_manager.emit_trace_event(incident_id, "action_planner_agent", f"Selected tool: {result['action'].tool}", "completed")
+        audit_trail.log_action_proposed(incident_id, result["action"].tool, result["action"].riskLevel, result["action"].requiresApproval)
+
+        # Check if approval is required
+        if result["action"].requiresApproval or result["action"].riskLevel in ["high", "critical"]:
+            # Create approval request
+            approval_request = approval_gate.create_approval_request(
+                incident_id,
+                result["action"].tool,
+                result["action"].riskLevel,
+                result["action"].description,
+                result["action"].reasoning,
+                [e.dict() for e in result["action"].linkedEvidence]
+            )
+
+            # Emit approval required event
+            sse_manager.emit_action_required(
+                incident_id,
+                "approval_required",
+                result["action"].tool,
+                result["action"].riskLevel,
+                f"Tool execution requires human approval"
+            )
+
+            # Update incident status
+            incident["status"] = "pending_approval"
+            incident["proposedAction"] = result["action"].dict()
+            audit_trail.log_approval_requested(incident_id, approval_request.id, result["action"].tool)
+            audit_trail.log_state_transition(incident_id, "investigating", "pending_approval", "High-risk tool requires approval")
+            sse_manager.emit_state_changed(incident_id, "investigating", "pending_approval", "High-risk tool requires approval")
+        else:
+            # Low-risk tool, can execute
+            incident["status"] = "executing"
+            incident["proposedAction"] = result["action"].dict()
+            audit_trail.log_state_transition(incident_id, "investigating", "executing", "Executing low-risk tool")
+            sse_manager.emit_state_changed(incident_id, "investigating", "executing", "Executing low-risk tool")
+
+            # Execute the tool
+            tool_result = tool_registry.execute_tool(result["action"].tool, user_id=incident.get("user_id", "unknown"))
+
+            # Emit tool execution event
+            sse_manager.emit_tool_executed(
+                incident_id,
+                result["action"].tool,
+                tool_result.success,
+                tool_result.message,
+                tool_result.data
+            )
+            audit_trail.log_tool_executed(incident_id, result["action"].tool, tool_result.success, tool_result.message, tool_result.data)
+
+            if tool_result.success:
+                # Verification
+                incident["status"] = "verifying"
+                sse_manager.emit_state_changed(incident_id, "executing", "verifying", "Verifying resolution")
+                audit_trail.log_state_transition(incident_id, "executing", "verifying", "Tool execution succeeded")
+
+                # Run verification tool
+                verify_result = tool_registry.execute_tool("verify_resolution")
+
+                if verify_result.success:
+                    incident["status"] = "resolved"
+                    incident["resolution"] = {
+                        "timestamp": datetime.now().isoformat(),
+                        "verificationMethod": "Automated verification",
+                        "success": True
+                    }
+                    sse_manager.emit_resolution_verified(incident_id, True, "automated", "Resolution verified successfully")
+                    audit_trail.log_verification_result(incident_id, True, "automated", "Resolution verified")
+                    audit_trail.log_incident_resolved(incident_id, "tool_execution")
+                    sse_manager.emit_state_changed(incident_id, "verifying", "resolved", "Resolution verified")
+                else:
+                    incident["status"] = "escalated"
+                    incident["escalationReason"] = "Verification failed"
+                    sse_manager.emit_resolution_verified(incident_id, False, "automated", "Verification failed")
+                    audit_trail.log_verification_result(incident_id, False, "automated", "Verification failed")
+                    audit_trail.log_incident_escalated(incident_id, "Verification failed")
+                    sse_manager.emit_state_changed(incident_id, "verifying", "escalated", "Verification failed")
+            else:
+                incident["status"] = "escalated"
+                incident["escalationReason"] = f"Tool execution failed: {tool_result.message}"
+                sse_manager.emit_state_changed(incident_id, "executing", "escalated", f"Tool failed: {tool_result.message}")
+                audit_trail.log_incident_escalated(incident_id, f"Tool execution failed: {tool_result.message}")
+    else:
+        # No suitable action found
+        incident["status"] = "escalated"
+        incident["escalationReason"] = "No suitable automated action found"
+        sse_manager.emit_state_changed(incident_id, "investigating", "escalated", "No automated action available")
+        audit_trail.log_incident_escalated(incident_id, "No suitable automated action found")
 
     # Update incident with analysis results
     incident["events"] = [e.dict() for e in result["events"]]
     incident["evidence"] = [e.dict() for e in result["evidence"]]
     incident["diagnosis"] = result["diagnosis"].dict() if result["diagnosis"] else None
-    incident["proposedAction"] = result["action"].dict() if result["action"] else None
-    incident["approvalRequired"] = result["action"].requiresApproval if result["action"] else False
-    incident["status"] = result["final_status"]
-    incident["escalationReason"] = "High-risk incident requires human approval." if result["requires_escalation"] else None
+    incident["approvalRequired"] = approval_gate.get_pending_request(incident_id) is not None
     incident["updatedAt"] = datetime.now()
 
     return incident
@@ -308,6 +564,26 @@ async def list_tools():
 async def get_tools_by_category():
     """Get tools organized by category."""
     return tool_registry.get_tools_by_category()
+
+@app.get("/api/incidents/{incident_id}/audit-trail")
+async def get_incident_audit_trail(incident_id: str):
+    """Get complete audit trail for an incident."""
+    if incident_id not in incidents_db:
+        raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
+
+    return {
+        "incident_id": incident_id,
+        "audit_trail": audit_trail.get_trail_json(incident_id),
+        "summary": audit_trail.get_summary(incident_id),
+    }
+
+@app.get("/api/incidents/{incident_id}/approval-status")
+async def get_approval_status(incident_id: str):
+    """Get approval status for an incident."""
+    if incident_id not in incidents_db:
+        raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
+
+    return approval_gate.get_summary(incident_id)
 
 from pydantic import BaseModel
 from typing import Dict, Any

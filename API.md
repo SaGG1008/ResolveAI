@@ -263,3 +263,101 @@ In case of errors:
     "error": null
   }
   ```
+
+---
+
+## 3. Tool Registry Endpoints
+
+### 3.1 List All Tools
+* **Endpoint:** `/tools`
+* **Method:** `GET`
+* **Purpose:** Retrieve a list of all available tools in the registry.
+* **Response Body (`200 OK`):**
+  ```json
+  [
+    {
+      "name": "search_knowledge_base",
+      "description": "Search the knowledge base for relevant articles and procedures",
+      "risk_level": "low",
+      "approval_required": false
+    },
+    {
+      "name": "reset_vpn_token",
+      "description": "Reset user VPN token to resolve authentication issues",
+      "risk_level": "low",
+      "approval_required": false
+    },
+    {
+      "name": "restart_service",
+      "description": "Restart a service to resolve operational issues",
+      "risk_level": "medium",
+      "approval_required": false
+    },
+    {
+      "name": "escalate_to_human",
+      "description": "Escalate an incident to human review for complex issues",
+      "risk_level": "high",
+      "approval_required": true
+    }
+  ]
+  ```
+
+### 3.2 Get Tools by Category
+* **Endpoint:** `/tools/by-category`
+* **Method:** `GET`
+* **Purpose:** Retrieve tools organized by functional category.
+* **Response Body (`200 OK`):**
+  ```json
+  {
+    "Knowledge": [
+      {
+        "name": "search_knowledge_base",
+        "description": "Search the knowledge base for relevant articles and procedures",
+        "risk_level": "low",
+        "approval_required": false
+      }
+    ],
+    "Remediation": [
+      {
+        "name": "reset_vpn_token",
+        "description": "Reset user VPN token to resolve authentication issues",
+        "risk_level": "low",
+        "approval_required": false
+      }
+    ]
+  }
+  ```
+
+### 3.3 Execute Tool
+* **Endpoint:** `/tools/execute`
+* **Method:** `POST`
+* **Purpose:** Execute a registered tool with validated inputs.
+* **Request Body:**
+  ```json
+  {
+    "name": "reset_vpn_token",
+    "parameters": {
+      "user_id": "usr_9482"
+    }
+  }
+  ```
+* **Response Body (`200 OK`):**
+  ```json
+  {
+    "success": true,
+    "tool": "reset_vpn_token",
+    "status": "success",
+    "message": "VPN token reset successfully for user 'usr_9482'",
+    "data": {
+      "user_id": "usr_9482",
+      "token_reset": true,
+      "new_token_hash": "TOKEN_HASH_usr_9482"
+    },
+    "error_code": null,
+    "timestamp": "2026-10-01T11:30:00Z"
+  }
+  ```
+* **Error Responses:**
+  * `400 Bad Request`: Invalid tool name or invalid inputs
+  * `403 Forbidden`: Tool requires human approval
+  * `500 Internal Server Error`: Tool execution failed
