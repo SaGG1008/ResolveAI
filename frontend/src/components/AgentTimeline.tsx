@@ -5,130 +5,176 @@ interface AgentTimelineProps {
   events: AgentEvent[];
 }
 
-const getAgentColor = (agent: string) => {
-  switch (agent) {
-    case 'triage':
-      return 'bg-purple-100 text-purple-800 border-purple-300';
-    case 'investigation':
-      return 'bg-blue-100 text-blue-800 border-blue-300';
-    case 'diagnosis':
-      return 'bg-cyan-100 text-cyan-800 border-cyan-300';
-    case 'action_planner':
-      return 'bg-orange-100 text-orange-800 border-orange-300';
-    case 'verification':
-      return 'bg-green-100 text-green-800 border-green-300';
-    default:
-      return 'bg-slate-100 text-slate-800 border-slate-300';
-  }
-};
-
-const getAgentLabel = (agent: string) => {
-  return agent.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-};
-
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case 'completed':
-      return '✓';
-    case 'processing':
-      return '⏳';
-    case 'failed':
-      return '✗';
-    default:
-      return '●';
-  }
-};
-
 export const AgentTimeline: React.FC<AgentTimelineProps> = ({ events }) => {
+  const getAgentTheme = (agent: string) => {
+    switch (agent) {
+      case 'triage':
+        return {
+          badge: 'bg-purple-950/70 border-purple-800/80 text-purple-300',
+          dot: 'bg-purple-500 border-purple-300',
+          label: 'Triage Agent',
+        };
+      case 'investigation':
+        return {
+          badge: 'bg-blue-950/70 border-blue-800/80 text-blue-300',
+          dot: 'bg-blue-500 border-blue-300',
+          label: 'Investigation Agent',
+        };
+      case 'diagnosis':
+        return {
+          badge: 'bg-cyan-950/70 border-cyan-800/80 text-cyan-300',
+          dot: 'bg-cyan-500 border-cyan-300',
+          label: 'Diagnosis Agent',
+        };
+      case 'action_planner':
+        return {
+          badge: 'bg-amber-950/70 border-amber-800/80 text-amber-300',
+          dot: 'bg-amber-500 border-amber-300',
+          label: 'Action Planner',
+        };
+      case 'verification':
+        return {
+          badge: 'bg-emerald-950/70 border-emerald-800/80 text-emerald-300',
+          dot: 'bg-emerald-500 border-emerald-300',
+          label: 'Verification Agent',
+        };
+      default:
+        return {
+          badge: 'bg-slate-800 border-slate-700 text-slate-300',
+          dot: 'bg-slate-500 border-slate-400',
+          label: 'Agent Runtime',
+        };
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return '✓';
+      case 'processing':
+        return '▶';
+      case 'failed':
+        return '✕';
+      default:
+        return '●';
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {events.map((event, idx) => (
-        <div key={event.id} className="flex gap-4">
-          {/* Timeline line */}
-          <div className="flex flex-col items-center">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${getAgentColor(event.agent)}`}>
-              {getStatusIcon(event.status)}
-            </div>
-            {idx < events.length - 1 && (
-              <div className="w-1 h-12 bg-slate-200 mt-2"></div>
-            )}
-          </div>
+      {events.map((event, idx) => {
+        const theme = getAgentTheme(event.agent);
+        const isLatest = idx === events.length - 1;
 
-          {/* Content */}
-          <div className="flex-1 pt-1 pb-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getAgentColor(event.agent)}`}>
-                {getAgentLabel(event.agent)}
-              </span>
-              <span className="text-xs text-slate-500">
-                {event.timestamp.toLocaleTimeString()}
-              </span>
+        return (
+          <div key={event.id || idx} className="relative flex gap-4 text-xs font-sans">
+            {/* Timeline line */}
+            <div className="flex flex-col items-center">
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs border shadow-sm ${
+                  event.status === 'completed'
+                    ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-400'
+                    : event.status === 'processing'
+                    ? 'bg-blue-950/90 border-blue-400 text-blue-300 animate-pulse'
+                    : event.status === 'failed'
+                    ? 'bg-rose-950/80 border-rose-500/80 text-rose-400'
+                    : 'bg-slate-900 border-slate-700 text-slate-400'
+                }`}
+              >
+                {getStatusIcon(event.status)}
+              </div>
+              {idx < events.length - 1 && (
+                <div className="w-[1px] h-full bg-slate-800 my-1 min-h-[30px]" />
+              )}
             </div>
-            <p className="text-sm text-slate-700">{event.message}</p>
 
-            {/* Evidence cards */}
-            {event.evidence && event.evidence.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {event.evidence.map((evidence) => (
-                  <div key={evidence.id} className="bg-slate-50 border border-slate-200 rounded p-3 text-xs">
-                    <div className="font-semibold text-slate-900">{evidence.title}</div>
-                    <div className="text-slate-600 mt-1">{evidence.content}</div>
-                    <div className="flex gap-2 mt-2 text-slate-500">
-                      <span className="bg-slate-200 px-2 py-1 rounded">{evidence.type.replace(/_/g, ' ')}</span>
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">{evidence.relevance}% relevant</span>
+            {/* Event Body Card */}
+            <div className={`flex-1 pb-4 ${isLatest ? 'opacity-100' : 'opacity-95'}`}>
+              <div className="bg-[#0e1320] border border-slate-800/90 rounded-xl p-4 shadow-sm space-y-2.5">
+                {/* Agent Header Tag */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-0.5 rounded text-[10px] font-mono font-bold border ${theme.badge}`}>
+                      {theme.label}
+                    </span>
+                    <span className="text-[10px] font-mono uppercase text-slate-500">
+                      {event.status}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                </div>
+
+                {/* Main Message */}
+                <p className="text-slate-200 text-xs leading-relaxed font-sans font-medium">
+                  {event.message}
+                </p>
+
+                {/* Sub-Card: Grounded Evidence Items */}
+                {event.evidence && event.evidence.length > 0 && (
+                  <div className="mt-2.5 pt-2.5 border-t border-slate-800/80 space-y-2">
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                      Discovered Evidence Sources ({event.evidence.length})
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {event.evidence.map((ev) => (
+                        <div key={ev.id} className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/70 text-[11px]">
+                          <div className="flex items-center justify-between font-bold text-slate-200 mb-1">
+                            <span className="truncate">{ev.title}</span>
+                            <span className="text-[10px] font-mono text-blue-400 shrink-0 ml-2">
+                              {ev.relevance}% relevant
+                            </span>
+                          </div>
+                          <p className="text-slate-400 text-[11px] line-clamp-2 leading-relaxed">
+                            {ev.content}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            {/* Diagnosis */}
-            {event.diagnosis && (
-              <div className="mt-3 bg-cyan-50 border border-cyan-200 rounded p-3">
-                <div className="text-xs font-semibold text-cyan-900">Diagnosis</div>
-                <div className="text-sm text-cyan-800 mt-1">{event.diagnosis.likelyCause}</div>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="text-xs font-semibold">Confidence:</div>
-                  <div className="w-20 bg-slate-200 rounded-full h-2">
-                    <div
-                      className="bg-green-500 h-2 rounded-full"
-                      style={{ width: `${event.diagnosis.confidence}%` }}
-                    ></div>
+                {/* Sub-Card: Diagnosis Block */}
+                {event.diagnosis && (
+                  <div className="mt-2.5 p-3 rounded-lg bg-cyan-950/30 border border-cyan-900/40 text-[11px] space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] font-mono uppercase text-cyan-400 font-bold">
+                      <span>Synthesized Root Cause</span>
+                      <span>Confidence: {event.diagnosis.confidence}%</span>
+                    </div>
+                    <div className="font-semibold text-cyan-200">
+                      {event.diagnosis.likelyCause}
+                    </div>
+                    {event.diagnosis.uncertainty && (
+                      <div className="text-[10px] text-amber-300 italic pt-1">
+                        ⚠️ Note: {event.diagnosis.uncertainty}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-xs font-bold text-cyan-900">{event.diagnosis.confidence}%</span>
-                </div>
-                {event.diagnosis.uncertainty && (
-                  <div className="text-xs text-cyan-700 mt-2 italic">⚠️ {event.diagnosis.uncertainty}</div>
+                )}
+
+                {/* Sub-Card: Action Plan Block */}
+                {event.action && (
+                  <div className="mt-2.5 p-3 rounded-lg bg-amber-950/20 border border-amber-900/40 text-[11px] space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] font-mono uppercase font-bold text-amber-400">
+                      <span>Proposed Action: {event.action.tool}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-700/50">
+                        Risk: {event.action.riskLevel.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="text-slate-200">
+                      {event.action.description}
+                    </div>
+                    <div className="text-[10px] text-slate-400 pt-1 font-mono">
+                      Reasoning: {event.action.reasoning}
+                    </div>
+                  </div>
                 )}
               </div>
-            )}
-
-            {/* Action */}
-            {event.action && (
-              <div className="mt-3 bg-orange-50 border border-orange-200 rounded p-3">
-                <div className="text-xs font-semibold text-orange-900">Action: {event.action.tool}</div>
-                <div className="text-sm text-orange-800 mt-1">{event.action.description}</div>
-                <div className="flex gap-2 mt-2">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                    event.action.riskLevel === 'low' ? 'bg-green-100 text-green-800' :
-                    event.action.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                    event.action.riskLevel === 'high' ? 'bg-orange-100 text-orange-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    Risk: {event.action.riskLevel}
-                  </span>
-                  {event.action.requiresApproval && (
-                    <span className="text-xs font-semibold px-2 py-1 rounded bg-red-100 text-red-800">
-                      Requires Approval
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-slate-600 mt-2">{event.action.reasoning}</div>
-              </div>
-            )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

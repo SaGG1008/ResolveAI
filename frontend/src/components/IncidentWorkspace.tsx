@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Incident } from '../types';
 import { AgentTimeline } from './AgentTimeline';
+import { AgentPipelineBar } from './AgentPipelineBar';
 import { api } from '../services/api';
 
 interface IncidentWorkspaceProps {
@@ -14,7 +15,7 @@ export const IncidentWorkspace: React.FC<IncidentWorkspaceProps> = ({ incident: 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    // Subscribe to real-time updates via SSE
+    // Subscribe to live Server-Sent Events (SSE) updates
     const unsubscribe = api.subscribeToIncident(initialIncident.id, (updated) => {
       setIncident(updated);
     });
@@ -39,7 +40,7 @@ export const IncidentWorkspace: React.FC<IncidentWorkspaceProps> = ({ incident: 
   const handleEscalate = async () => {
     setIsSubmitting(true);
     try {
-      const updated = await api.submitApproval(incident.id, false, "Operator chose manual escalation");
+      const updated = await api.submitApproval(incident.id, false, "Operator requested Tier-2 human escalation");
       setIncident(updated);
       setApprovalModalOpen(false);
     } catch (e) {
@@ -49,201 +50,289 @@ export const IncidentWorkspace: React.FC<IncidentWorkspaceProps> = ({ incident: 
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case 'resolved':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-950/80 text-emerald-300 border-emerald-600/80';
       case 'escalated':
-        return 'bg-red-100 text-red-800';
+        return 'bg-rose-950/80 text-rose-300 border-rose-600/80';
       case 'pending_approval':
-        return 'bg-amber-100 text-amber-800';
+        return 'bg-amber-950/80 text-amber-300 border-amber-600/80 animate-pulse';
       case 'executing':
       case 'verifying':
+        return 'bg-indigo-950/80 text-indigo-300 border-indigo-600/80';
       case 'investigating':
       case 'diagnosed':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-950/80 text-blue-300 border-blue-600/80';
       default:
-        return 'bg-slate-100 text-slate-800';
+        return 'bg-slate-800 text-slate-300 border-slate-700';
+    }
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    switch (priority) {
+      case 'critical':
+        return 'bg-rose-950/80 text-rose-300 border-rose-800 font-bold';
+      case 'high':
+        return 'bg-amber-950/80 text-amber-300 border-amber-800 font-semibold';
+      case 'medium':
+        return 'bg-blue-950/80 text-blue-300 border-blue-800';
+      default:
+        return 'bg-slate-800 text-slate-400 border-slate-700';
     }
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-8 py-6">
-        <button
-          onClick={onBack}
-          className="text-sm text-blue-600 hover:text-blue-800 font-medium mb-4"
-        >
-          ← Back to Dashboard
-        </button>
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">{incident.id}</h1>
-            <h2 className="text-xl text-slate-700 mt-2">{incident.title}</h2>
-            <p className="text-slate-600 mt-1">{incident.description}</p>
+    <div className="flex flex-col h-screen bg-[#0b0f19] text-slate-200">
+      {/* 1. TOP HEADER BAR */}
+      <div className="bg-[#0e1320] border-b border-slate-800/80 px-6 py-4 shrink-0">
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={onBack}
+            className="text-xs text-blue-400 hover:text-blue-300 font-mono font-medium flex items-center gap-1.5 transition"
+          >
+            <span>←</span>
+            <span>Back to Command Center</span>
+          </button>
+          <div className="text-[11px] font-mono text-slate-400">
+            Created: {new Date(incident.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
-          <div className="text-right">
-            <span className={`inline-block px-4 py-2 rounded-lg font-semibold text-sm ${getStatusColor(incident.status)}`}>
+        </div>
+
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl font-bold text-white font-mono">{incident.id}</span>
+              <span className={`px-2.5 py-0.5 rounded text-[10px] font-mono uppercase border ${getPriorityBadge(incident.priority)}`}>
+                {incident.priority} Priority
+              </span>
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-mono bg-slate-900 border border-slate-700 text-slate-300">
+                {incident.category}
+              </span>
+            </div>
+            <h1 className="text-base font-semibold text-slate-100 mt-1">{incident.title}</h1>
+            <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{incident.description}</p>
+          </div>
+
+          <div className="text-right shrink-0">
+            <span className={`inline-block px-3.5 py-1 rounded-full font-mono font-bold text-xs border ${getStatusBadge(incident.status)}`}>
               {incident.status.replace(/_/g, ' ').toUpperCase()}
             </span>
-            <div className="text-sm text-slate-500 mt-3">
-              Created: {new Date(incident.createdAt).toLocaleString()}
-            </div>
           </div>
+        </div>
+
+        {/* Multi-Agent Pipeline Strip */}
+        <div className="mt-4">
+          <AgentPipelineBar currentStatus={incident.status} />
         </div>
       </div>
 
-      {/* Main content - Two column layout */}
+      {/* 2. MAIN INVESTIGATION WORKSPACE */}
       <div className="flex-1 overflow-auto flex">
-        {/* Left: Agent Activity Timeline */}
-        <div className="flex-1 border-r border-slate-200 px-8 py-6">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">Agent Activity</h3>
+        {/* LEFT COLUMN: Live Agent Activity Timeline (60%) */}
+        <div className="flex-1 overflow-y-auto border-r border-slate-800/80 p-6 space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="text-indigo-400 text-xs">✦</span>
+              <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
+                Autonomous Agent Execution Trace
+              </h2>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">
+              {incident.events.length} audit steps recorded
+            </span>
+          </div>
+
           <AgentTimeline events={incident.events} />
         </div>
 
-        {/* Right: Incident Overview Panel */}
-        <div className="w-80 bg-white border-l border-slate-200 px-6 py-6 overflow-auto">
-          <h3 className="text-lg font-bold text-slate-900 mb-4">Overview</h3>
-
-          {/* Status details */}
-          <div className="mb-6">
-            <h4 className="text-xs font-semibold text-slate-600 uppercase mb-2">Status Details</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-600">Priority:</span>
-                <span className="font-semibold text-slate-900">{incident.priority.charAt(0).toUpperCase() + incident.priority.slice(1)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600">Category:</span>
-                <span className="font-semibold text-slate-900">{incident.category}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600">Current Status:</span>
-                <span className="font-semibold text-slate-900">{incident.status.replace(/_/g, ' ')}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Diagnosis if available */}
+        {/* RIGHT COLUMN: Evidence, Diagnosis & Decision Panel (40%) */}
+        <div className="w-96 bg-[#090d16] p-6 overflow-y-auto space-y-5 shrink-0 border-l border-slate-800/80 text-xs">
+          {/* AI Diagnosis Card */}
           {incident.diagnosis && (
-            <div className="mb-6 bg-cyan-50 border border-cyan-200 rounded p-4">
-              <h4 className="text-xs font-semibold text-cyan-900 uppercase mb-2">Diagnosis</h4>
-              <p className="text-sm text-cyan-900 font-semibold mb-2">{incident.diagnosis.likelyCause}</p>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs text-cyan-700">Confidence:</span>
-                <div className="flex-1 bg-slate-200 rounded-full h-2">
-                  <div
-                    className="bg-green-500 h-2 rounded-full"
-                    style={{ width: `${incident.diagnosis.confidence}%` }}
-                  ></div>
-                </div>
-                <span className="text-xs font-bold text-cyan-900">{incident.diagnosis.confidence}%</span>
+            <div className="bg-[#0e1320] border border-cyan-900/50 rounded-xl p-4 shadow-sm space-y-2.5">
+              <div className="flex items-center justify-between text-cyan-400 text-[10px] font-mono uppercase font-bold">
+                <span>AI Root Cause Diagnosis</span>
+                <span className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-700/60">
+                  {incident.diagnosis.confidence}% Confidence
+                </span>
+              </div>
+              <div className="font-bold text-cyan-200 text-xs leading-relaxed">
+                {incident.diagnosis.likelyCause}
+              </div>
+              <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-cyan-400 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${incident.diagnosis.confidence}%` }}
+                />
               </div>
               {incident.diagnosis.uncertainty && (
-                <p className="text-xs text-cyan-700 italic">⚠️ {incident.diagnosis.uncertainty}</p>
+                <div className="text-[10px] text-amber-300 italic pt-1">
+                  ⚠️ Note: {incident.diagnosis.uncertainty}
+                </div>
               )}
             </div>
           )}
 
-          {/* Evidence */}
-          {incident.evidence && incident.evidence.length > 0 && (
-            <div className="mb-6">
-              <h4 className="text-xs font-semibold text-slate-600 uppercase mb-3">Evidence</h4>
+          {/* Action Decision Card */}
+          {incident.proposedAction && (
+            <div className="bg-[#0e1320] border border-amber-900/50 rounded-xl p-4 shadow-sm space-y-2.5">
+              <div className="flex items-center justify-between text-[10px] font-mono uppercase font-bold text-amber-400">
+                <span>Recommended Action</span>
+                <span className="px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-700/60">
+                  Risk: {incident.proposedAction.riskLevel.toUpperCase()}
+                </span>
+              </div>
+              <div className="font-bold text-white text-xs font-mono">
+                {incident.proposedAction.tool}
+              </div>
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                {incident.proposedAction.description}
+              </p>
+              <div className="bg-slate-950/70 border border-slate-800 p-2.5 rounded-lg text-[11px] text-slate-400 space-y-1">
+                <div className="text-[10px] font-mono uppercase text-slate-300 font-bold">Why this action?</div>
+                <div>{incident.proposedAction.reasoning}</div>
+              </div>
+
+              {/* Action Buttons for Pending Approval */}
+              {incident.status === 'pending_approval' && (
+                <div className="pt-2 space-y-2">
+                  <button
+                    onClick={() => setApprovalModalOpen(true)}
+                    className="w-full py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-xs shadow-md shadow-green-600/30 transition active:scale-95"
+                  >
+                    Review & Authorize Execution
+                  </button>
+                  <button
+                    onClick={handleEscalate}
+                    disabled={isSubmitting}
+                    className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg text-xs transition"
+                  >
+                    Escalate to Tier-2
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Grounded Evidence Drawer */}
+          <div className="bg-[#0e1320] border border-slate-800 rounded-xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-slate-300 font-bold">
+                Grounded Evidence Sources ({incident.evidence?.length || 0})
+              </div>
+              <span className="text-[10px] font-mono text-emerald-400">Zero-Hallucination</span>
+            </div>
+
+            {incident.evidence && incident.evidence.length > 0 ? (
               <div className="space-y-2">
                 {incident.evidence.map((ev) => (
-                  <div key={ev.id} className="bg-slate-50 border border-slate-200 rounded p-2 text-xs">
-                    <div className="font-semibold text-slate-900">{ev.title}</div>
-                    <div className="text-slate-600 text-xs mt-1">{ev.source}</div>
+                  <div key={ev.id} className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/80 text-[11px] space-y-1">
+                    <div className="flex items-center justify-between font-bold text-slate-200">
+                      <span className="truncate">{ev.title}</span>
+                      <span className="text-[10px] font-mono text-blue-400 shrink-0 ml-1">
+                        {ev.relevance}%
+                      </span>
+                    </div>
+                    <p className="text-slate-400 text-[11px] line-clamp-2 leading-relaxed">
+                      {ev.content}
+                    </p>
+                    <div className="text-[9px] font-mono text-slate-500 pt-0.5">
+                      Source: {ev.source || ev.type}
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="text-slate-500 text-[11px] italic py-2">
+                Investigation in progress; searching telemetry and runbooks...
+              </div>
+            )}
+          </div>
 
-          {/* Resolution */}
+          {/* Resolution Outcome Block */}
           {incident.resolution && (
-            <div className="mb-6 bg-green-50 border border-green-200 rounded p-4">
-              <h4 className="text-xs font-semibold text-green-900 uppercase mb-2">Resolution</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-green-700">Status:</span>
-                  <span className="font-semibold text-green-900">{incident.resolution.success ? 'Success' : 'Failed'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-green-700">Method:</span>
-                  <span className="font-semibold text-green-900">{incident.resolution.verificationMethod}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-green-700">Resolved:</span>
-                  <span className="font-semibold text-green-900">{new Date(incident.resolution.timestamp).toLocaleString()}</span>
-                </div>
+            <div className="bg-emerald-950/30 border border-emerald-800/60 rounded-xl p-4 shadow-sm space-y-2">
+              <div className="flex items-center gap-2 text-emerald-400 font-mono font-bold text-[10px] uppercase">
+                <span>✓ Verified Resolution</span>
+              </div>
+              <div className="text-slate-200 font-semibold text-xs">
+                {incident.resolution.success ? "Incident Successfully Resolved & Verified" : "Verification Failed"}
+              </div>
+              <div className="text-[11px] text-slate-400 font-mono">
+                Method: {incident.resolution.verificationMethod}
               </div>
             </div>
           )}
 
-          {/* Escalation */}
+          {/* Escalation Outcome Block */}
           {incident.escalationReason && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded p-4">
-              <h4 className="text-xs font-semibold text-red-900 uppercase mb-2">Escalation</h4>
-              <p className="text-sm text-red-800">{incident.escalationReason}</p>
-            </div>
-          )}
-
-          {/* Actions */}
-          {incident.approvalRequired && incident.status === 'pending_approval' && (
-            <div className="mt-6 space-y-2">
-              <button
-                onClick={() => setApprovalModalOpen(true)}
-                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 text-sm"
-              >
-                Approve Action
-              </button>
-              <button
-                onClick={handleEscalate}
-                disabled={isSubmitting}
-                className="w-full px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 text-sm"
-              >
-                Escalate
-              </button>
+            <div className="bg-rose-950/30 border border-rose-800/60 rounded-xl p-4 shadow-sm space-y-2">
+              <div className="flex items-center gap-2 text-rose-400 font-mono font-bold text-[10px] uppercase">
+                <span>⚠ Human Escalation Handover</span>
+              </div>
+              <div className="text-slate-300 text-[11px] leading-relaxed">
+                {incident.escalationReason}
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Approval Modal */}
+      {/* 3. HUMAN APPROVAL MODAL */}
       {approvalModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="px-6 py-4 border-b border-slate-200">
-              <h3 className="text-lg font-bold">Approve Action?</h3>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#0e1320] border border-slate-700 rounded-2xl shadow-2xl max-w-lg w-full p-6 text-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                <h3 className="text-base font-bold text-white">Operator Authorization Required</h3>
+              </div>
+              <button
+                onClick={() => setApprovalModalOpen(false)}
+                className="text-slate-400 hover:text-slate-200 font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <div className="px-6 py-4">
-              <p className="text-sm text-slate-600 mb-4">
-                This will execute the proposed action. Review the risk level and evidence before proceeding.
+
+            <div className="text-xs text-slate-300 space-y-3 leading-relaxed">
+              <p>
+                The AI Action Planner has selected an elevated-risk tool. In accordance with autonomous safety policies, execution requires human sign-off:
               </p>
+
               {incident.proposedAction && (
-                <div className="bg-slate-50 border border-slate-200 rounded p-3 mb-4">
-                  <div className="text-sm font-semibold">{incident.proposedAction.tool}</div>
-                  <div className="text-xs text-slate-600 mt-1">{incident.proposedAction.description}</div>
-                  <div className="text-xs text-amber-700 font-semibold mt-2">Risk: {incident.proposedAction.riskLevel.toUpperCase()}</div>
+                <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-mono font-bold">
+                    <span className="text-amber-400">{incident.proposedAction.tool}</span>
+                    <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                      Risk: {incident.proposedAction.riskLevel.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-slate-300 text-xs">
+                    {incident.proposedAction.description}
+                  </div>
+                  <div className="text-[11px] text-slate-400 pt-1 font-mono border-t border-slate-800/80">
+                    Justification: {incident.proposedAction.reasoning}
+                  </div>
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-slate-200 flex gap-3">
+
+            <div className="pt-3 border-t border-slate-800 flex gap-3">
               <button
                 onClick={() => setApprovalModalOpen(false)}
                 disabled={isSubmitting}
-                className="flex-1 px-4 py-2 bg-slate-200 text-slate-900 rounded-lg font-semibold hover:bg-slate-300"
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleApprove}
                 disabled={isSubmitting}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-bold shadow-md shadow-green-600/30 transition"
               >
-                {isSubmitting ? 'Executing...' : 'Approve & Execute'}
+                {isSubmitting ? 'Executing Remediation...' : 'Authorize & Execute'}
               </button>
             </div>
           </div>
