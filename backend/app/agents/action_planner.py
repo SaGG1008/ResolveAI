@@ -24,6 +24,18 @@ class ActionPlannerAgent:
                 reasoning="Evidence shows a dead session lock on the VPN gateway. Resetting the session is low-risk and restores authentication immediately."
             )
 
+        if "security" in category.lower() or "unauthorized" in cause or "compromised" in cause:
+            tool_meta = tool_registry.get_tool("lock_compromised_account")
+            return Action(
+                id="act-sec-lockdown",
+                tool="lock_compromised_account",
+                description="Emergency containment: terminate active sessions and challenge user credentials.",
+                riskLevel="high",
+                requiresApproval=True,
+                linkedEvidence=evidence,
+                reasoning="High-risk security incident detected. Security policy mandates human authorization before terminating corporate sessions and revoking OAuth access."
+            )
+
         if "proxy" in cause or "service" in cause:
             tool_meta = tool_registry.get_tool("restart_service")
             return Action(

@@ -33,5 +33,12 @@
     "content": "When single sign-on apps continuously loop on the login screen, invalidate user auth token cache and re-prompt authentication.",
     "category": "Authentication",
     "tags": ["sso", "okta", "token", "login", "loop", "authentication"]
+  },
+  {
+    "id": "KB-601",
+    "title": "Compromised Account Incident & Access Revocation Policy",
+    "content": "When an employee reports suspected unauthorized account access or credential theft, automated remediation is strictly prohibited without human security review. Procedure: Lock account sessions, revoke active OAuth tokens, and escalate immediately to Tier-2 Security Incident Response (SecOps).",
+    "category": "Security",
+    "tags": ["security", "account", "unauthorized", "compromised", "login", "breach", "password", "accessed"]
   }
 ]

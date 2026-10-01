@@ -9,7 +9,7 @@ Centralized registry for all tools with:
 """
 
 from typing import Dict, Type
-from .base import Tool, RiskLevel, ToolResult
+from .base import Tool, RiskLevel, ToolResult, ToolResultStatus
 from .risk_policy import risk_policy
 from .knowledge import SearchKnowledgeBaseTool, SearchPreviousTicketsTool, GetTroubleshootingProcedureTool
 from .diagnostics import GetSystemStatusTool

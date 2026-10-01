@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.incidents import router as incidents_router
 from .api.dashboard import router as dashboard_router
 from .api.system import router as system_router
+from .api.tools import router as tools_router
 from .core.db import db
 from .tools import handlers # ensures tools are registered
 
@@ -34,6 +35,7 @@ app.add_middleware(
 app.include_router(incidents_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(system_router, prefix="/api")
+app.include_router(tools_router, prefix="/api")
 
 @app.get("/")
 async def root():

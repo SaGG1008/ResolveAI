@@ -54,13 +54,18 @@ class InvestigationAgent:
             if ("vpn" in query_text and "vpn" in svc_id) or \
                ("proxy" in query_text and "proxy" in svc_id) or \
                ("git" in query_text and "proxy" in svc_id) or \
-               ("sso" in query_text and "sso" in svc_id):
+               ("sso" in query_text and "sso" in svc_id) or \
+               ("security" in query_text and "secops" in svc_id) or \
+               ("access" in query_text and "secops" in svc_id) or \
+               ("auth" in query_text and "sso" in svc_id):
                 
                 status_desc = f"Service: {svc.get('name')}. Status: {svc.get('status')}."
                 if "stale_locks_detected" in svc:
                     status_desc += f" Stale session locks detected: {svc['stale_locks_detected']}."
                 if "last_crash" in svc:
                     status_desc += f" Last crash diagnostic: {svc['last_crash']}."
+                if "suspicious_events_today" in svc:
+                    status_desc += f" Security alerts flagged today: {svc['suspicious_events_today']}."
                 
                 evidence_list.append(Evidence(
                     id=f"ev-sys-{ev_counter}",

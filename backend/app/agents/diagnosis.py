@@ -15,16 +15,25 @@ class DiagnosisAgent:
                 uncertainty="Insufficient context or evidence found. Requires human investigation."
             )
 
-        # Scenario 1: VPN
+        # Scenario 1: VPN Disconnect / Session Lock
         if "vpn" in text:
             return Diagnosis(
-                likelyCause="Stale session lock in gateway session table causing authentication expiry.",
+                likelyCause="VPN authentication token has expired due to a stale session lock in the gateway session table.",
                 confidence=94,
                 supportingEvidence=evidence,
                 uncertainty=None
             )
 
-        # Scenario 2: Auth Proxy
+        # Scenario 2: Security & Account Access
+        if "security" in text or "accessed my account" in text or "unauthorized" in text or "suspicious" in text:
+            return Diagnosis(
+                likelyCause="Suspicious unauthorized account access pattern or compromised session credential detected.",
+                confidence=92,
+                supportingEvidence=evidence,
+                uncertainty="Automated credential resets prohibited by company security policy without human SecOps review."
+            )
+
+        # Scenario 3: Auth Proxy Crash
         if "proxy" in text or "git" in text or "8080" in text:
             return Diagnosis(
                 likelyCause="Local authentication proxy daemon crashed due to memory limit (Exit Code 137).",
@@ -33,7 +42,7 @@ class DiagnosisAgent:
                 uncertainty="Restarting service will temporarily disrupt in-flight git connections."
             )
 
-        # Scenario 3: Hardware Crash
+        # Scenario 4: Hardware Crash
         if "kernel" in text or "0x889fa" in text or "purple" in text or "screen" in text:
             return Diagnosis(
                 likelyCause="Unrecoverable hardware memory parity corruption (Code 0x889FA).",

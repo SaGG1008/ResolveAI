@@ -5,7 +5,7 @@ Centralized tool registry with risk policies and execution guards.
 """
 
 # Import base classes first
-from .base import Tool, ToolResult, ToolInputSchema, RiskLevel
+from .base import Tool, ToolResult, ToolResultStatus, ToolInputSchema, RiskLevel
 
 # Import risk policy
 from .risk_policy import RiskPolicy, risk_policy

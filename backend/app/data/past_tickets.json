@@ -25,5 +25,14 @@
     "resolution_action": "create_jira_escalation_ticket",
     "outcome": "Escalated to Tier-2 Hardware Provisioning for replacement laptop.",
     "tags": ["screen", "purple", "kernel", "0x889fa", "hardware"]
+  },
+  {
+    "id": "INC-9012",
+    "title": "Suspected unauthorized account login from foreign IP",
+    "description": "User reported suspicious access alert and unfamiliar login from foreign location.",
+    "root_cause": "Compromised session token / credential stuffing attempt.",
+    "resolution_action": "escalate_to_human(queue=SecOps_Incident_Response)",
+    "outcome": "Escalated to Tier-2 SecOps; account locked and MFA reset initiated by security analyst.",
+    "tags": ["security", "account", "unauthorized", "compromised", "accessed", "login"]
   }
 ]

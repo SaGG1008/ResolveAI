@@ -176,5 +176,109 @@ class TestResolveAIBackend(unittest.TestCase):
         self.assertEqual(system_status["status"], "HEALTHY")
         self.assertIn("registered_tools", system_status)
 
+    def test_08_scenario_security_escalation(self):
+        """Test secondary escalation scenario: Unauthorized Account Access / Security Incident."""
+        async def run_security_scenario():
+            inc = Incident(
+                id="TEST-SEC-01",
+                title="Suspicious account activity",
+                description="Someone may have accessed my account from an unfamiliar location.",
+                status="open"
+            )
+            db.save_incident(inc)
+
+            await orchestrator.run_investigation_pipeline("TEST-SEC-01")
+
+            sec_inc = db.get_incident_by_id("TEST-SEC-01")
+            self.assertIsNotNone(sec_inc)
+            self.assertEqual(sec_inc.category, "Security")
+            self.assertEqual(sec_inc.priority, "critical")
+            self.assertEqual(sec_inc.status, "pending_approval")
+            self.assertTrue(sec_inc.approvalRequired)
+            self.assertEqual(sec_inc.proposedAction.riskLevel, "high")
+            self.assertGreaterEqual(len(sec_inc.evidence), 1)
+
+            # Operator approval execution
+            await orchestrator.execute_and_verify(sec_inc)
+            resolved_sec = db.get_incident_by_id("TEST-SEC-01")
+            self.assertEqual(resolved_sec.status, "resolved")
+            self.assertTrue(resolved_sec.resolution.success)
+
+        asyncio.run(run_security_scenario())
+
+    def test_09_failed_verification_escalation(self):
+        """Test that failed verification does NOT claim success and escalates to Tier-2."""
+        async def run_fail_verify():
+            inc = Incident(
+                id="TEST-FAIL-01",
+                title="Stubborn VPN Session",
+                description="My VPN keeps disconnecting continuously.",
+                status="open"
+            )
+            db.save_incident(inc)
+
+            await orchestrator.run_investigation_pipeline("TEST-FAIL-01")
+
+            inc_obj = db.get_incident_by_id("TEST-FAIL-01")
+            # Force verification failure to test escalation path
+            await orchestrator.execute_and_verify(inc_obj, simulate_failure=True)
+
+            failed_inc = db.get_incident_by_id("TEST-FAIL-01")
+            self.assertEqual(failed_inc.status, "escalated")
+            self.assertIsNotNone(failed_inc.escalation)
+            self.assertIn("failed", failed_inc.escalationReason.lower())
+
+        asyncio.run(run_fail_verify())
+
+    def test_10_tools_rest_endpoints(self):
+        """Test the dedicated /api/tools endpoints."""
+        # 1. List tools
+        res = self.client.get("/api/tools")
+        self.assertEqual(res.status_code, 200)
+        tools = res.json()
+        self.assertIn("reset_vpn_session", tools)
+        self.assertIn("get_system_status", tools)
+        self.assertIn("search_knowledge_base", tools)
+
+        # 2. Tools by category
+        res = self.client.get("/api/tools/by-category")
+        self.assertEqual(res.status_code, 200)
+        by_cat = res.json()
+        self.assertIn("Diagnostics", by_cat)
+        self.assertIn("Remediation", by_cat)
+
+        # 3. Tool execution API
+        res = self.client.post("/api/tools/execute", json={
+            "name": "check_vpn_diagnostics",
+            "parameters": {"user_id": "usr_test"}
+        })
+        self.assertEqual(res.status_code, 200)
+        exec_res = res.json()
+        self.assertTrue(exec_res["success"])
+        self.assertEqual(exec_res["tool"], "check_vpn_diagnostics")
+
+    def test_11_all_registered_tools_suite(self):
+        """Verify deterministic execution across all required tools."""
+        # Diagnostic & Lookup
+        self.assertEqual(tool_registry.execute("get_system_status")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("check_vpn_diagnostics")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("check_auth_session")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("search_knowledge_base", query="vpn")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("search_past_tickets", query="vpn")["status"], "SUCCESS")
+
+        # Remediation
+        self.assertEqual(tool_registry.execute("reset_vpn_session")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("reset_vpn_token")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("flush_dns_cache")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("restart_service", service_name="auth_proxy")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("lock_compromised_account", user_id="usr_01", reason="test")["status"], "SUCCESS")
+
+        # Verification & Ticketing
+        self.assertEqual(tool_registry.execute("verify_connectivity")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("verify_resolution")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("create_jira_escalation_ticket", summary="test")["status"], "SUCCESS")
+        self.assertEqual(tool_registry.execute("escalate_to_human", reason="test")["status"], "SUCCESS")
+
 if __name__ == "__main__":
     unittest.main()
+

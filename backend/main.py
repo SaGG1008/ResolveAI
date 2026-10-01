@@ -309,19 +309,30 @@ async def get_tools_by_category():
     """Get tools organized by category."""
     return tool_registry.get_tools_by_category()
 
+from pydantic import BaseModel
+from typing import Dict, Any
+
+
+class ExecuteToolRequest(BaseModel):
+    """Request body for tool execution."""
+    name: str
+    parameters: Dict[str, Any] = {}
+
+
 @app.post("/api/tools/execute")
-async def execute_tool(name: str, **kwargs):
+async def execute_tool(request: ExecuteToolRequest):
     """
     Execute a tool with validated inputs.
 
+    Request body:
     - name: Tool name to execute
-    - Additional parameters specific to the tool
+    - parameters: Tool-specific parameters
 
     Returns:
         Standardized ToolResult
     """
     try:
-        result = tool_registry.execute_tool(name, **kwargs)
+        result = tool_registry.execute_tool(request.name, **request.parameters)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

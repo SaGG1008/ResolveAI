@@ -27,6 +27,13 @@
       "name": "Internal Core DNS",
       "status": "OPERATIONAL",
       "latency_ms": 8
+    },
+    {
+      "id": "secops_threat_intel",
+      "name": "SecOps Threat Intelligence & Auth Guard",
+      "status": "OPERATIONAL",
+      "suspicious_events_today": 3,
+      "latency_ms": 15
     }
   ]
 }

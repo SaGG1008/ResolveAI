@@ -39,6 +39,7 @@ class Database:
                     category TEXT NOT NULL,
                     approval_required INTEGER NOT NULL DEFAULT 0,
                     escalation_reason TEXT,
+                    escalation_json TEXT,
                     diagnosis_json TEXT,
                     action_json TEXT,
                     resolution_json TEXT,
@@ -76,6 +77,13 @@ class Database:
             """)
             conn.commit()
             
+            # Migration check: ensure escalation_json exists on existing databases
+            try:
+                conn.execute("ALTER TABLE incidents ADD COLUMN escalation_json TEXT")
+                conn.commit()
+            except Exception:
+                pass # Already exists
+
             # Check if seed incidents exist, if not insert initial records
             cursor = conn.execute("SELECT COUNT(*) as count FROM incidents")
             count = cursor.fetchone()["count"]
@@ -393,9 +401,9 @@ class Database:
             conn.execute("""
                 INSERT INTO incidents (
                     id, title, description, status, priority, category,
-                    approval_required, escalation_reason, diagnosis_json,
-                    action_json, resolution_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    approval_required, escalation_reason, escalation_json,
+                    diagnosis_json, action_json, resolution_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     title = excluded.title,
                     description = excluded.description,
@@ -404,6 +412,7 @@ class Database:
                     category = excluded.category,
                     approval_required = excluded.approval_required,
                     escalation_reason = excluded.escalation_reason,
+                    escalation_json = excluded.escalation_json,
                     diagnosis_json = excluded.diagnosis_json,
                     action_json = excluded.action_json,
                     resolution_json = excluded.resolution_json,
@@ -417,6 +426,7 @@ class Database:
                 incident.category,
                 1 if incident.approvalRequired else 0,
                 incident.escalationReason,
+                json.dumps(incident.escalation.model_dump(mode="json")) if incident.escalation else None,
                 json.dumps(incident.diagnosis.model_dump(mode="json")) if incident.diagnosis else None,
                 json.dumps(incident.proposedAction.model_dump(mode="json")) if incident.proposedAction else None,
                 json.dumps(incident.resolution.model_dump(mode="json")) if incident.resolution else None,
@@ -512,6 +522,10 @@ class Database:
         diagnosis = Diagnosis(**json.loads(row["diagnosis_json"])) if row["diagnosis_json"] else None
         action = Action(**json.loads(row["action_json"])) if row["action_json"] else None
         resolution = IncidentResolution(**json.loads(row["resolution_json"])) if row["resolution_json"] else None
+        escalation = None
+        if "escalation_json" in row.keys() and row["escalation_json"]:
+            from ..models.schemas import Escalation
+            escalation = Escalation(**json.loads(row["escalation_json"]))
 
         return Incident(
             id=row["id"],
@@ -528,6 +542,7 @@ class Database:
             proposedAction=action,
             approvalRequired=bool(row["approval_required"]),
             escalationReason=row["escalation_reason"],
+            escalation=escalation,
             resolution=resolution
         )
 

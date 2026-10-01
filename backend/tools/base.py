@@ -14,7 +14,8 @@ All tools must implement the Tool interface with:
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Optional, Dict
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, Field
 
 
 class RiskLevel(str, Enum):
@@ -42,7 +43,7 @@ class ToolResult(BaseModel):
     message: str
     data: Optional[Dict[str, Any]] = None
     error_code: Optional[str] = None
-    timestamp: str
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
 class ToolInputSchema(BaseModel):
@@ -77,7 +78,8 @@ class Tool(ABC):
             simulated_state: Shared state for the simulated enterprise environment.
                            Tools can read from and write to this state.
         """
-        self.simulated_state = simulated_state or {}
+        # Use the passed dict if provided, even if empty; only create new if None
+        self.simulated_state = simulated_state if simulated_state is not None else {}
 
     @abstractmethod
     def execute(self, **kwargs) -> ToolResult:

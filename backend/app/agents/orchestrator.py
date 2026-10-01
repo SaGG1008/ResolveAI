@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Callable
-from ..models.schemas import Incident, AgentEvent
+from ..models.schemas import Incident, AgentEvent, Escalation, IncidentResolution
 from ..core.db import db
 from .triage import triage_agent
 from .investigation import investigation_agent
@@ -10,6 +10,7 @@ from .diagnosis import diagnosis_agent
 from .action_planner import action_planner_agent
 from .verification import verification_agent
 from ..tools.registry import tool_registry
+from ..tools.handlers import create_jira_escalation_ticket
 
 class AgentOrchestrator:
     """Coordinates multi-agent pipeline execution and emits real-time events."""
@@ -49,17 +50,17 @@ class AgentOrchestrator:
         # 1. TRIAGE STAGE
         incident.status = "investigating"
         triage_res = triage_agent.run(incident.description, incident.title)
-        incident.category = triage_res["category"]
-        incident.priority = triage_res["priority"]
+        incident.category = triage_res.category
+        incident.priority = triage_res.priority
         if incident.title == "New Incident" or not incident.title:
-            incident.title = triage_res["title"]
+            incident.title = triage_res.title
 
         triage_event = AgentEvent(
             id=f"evt-{uuid.uuid4().hex[:6]}",
             timestamp=datetime.now(timezone.utc),
             agent="triage",
             status="completed",
-            message=triage_res["message"]
+            message=triage_res.message
         )
         await self._emit_event(incident, triage_event)
         await asyncio.sleep(0.3)
@@ -102,13 +103,30 @@ class AgentOrchestrator:
         if not action:
             # Escalation path
             incident.status = "escalated"
-            incident.escalationReason = f"Automated resolution not feasible ({diag.uncertainty or 'Low diagnosis confidence'}). Escalated to Tier-2 IT Support."
+            escalation_reason = f"Automated resolution not feasible ({diag.uncertainty or 'Low diagnosis confidence'}). Escalated to Tier-2 IT Support."
+            incident.escalationReason = escalation_reason
+            
+            # Generate escalation ticket
+            tkt_res = create_jira_escalation_ticket(
+                summary=f"Escalation: {incident.title}",
+                priority="P1" if incident.priority in ["high", "critical"] else "P2",
+                queue="Tier2_Support",
+                diagnostic_notes=escalation_reason
+            )
+            incident.escalation = Escalation(
+                reason=escalation_reason,
+                targetQueue="Tier2_IT_Support",
+                ticketId=tkt_res.get("ticket_id"),
+                priority=incident.priority,
+                diagnosticBrief=diag.likelyCause
+            )
+
             escalate_event = AgentEvent(
                 id=f"evt-{uuid.uuid4().hex[:6]}",
                 timestamp=datetime.now(timezone.utc),
                 agent="action_planner",
                 status="failed",
-                message=f"No safe automated tool available. {incident.escalationReason}"
+                message=f"No safe automated tool available. {incident.escalationReason} Ref: {tkt_res.get('ticket_id')}"
             )
             await self._emit_event(incident, escalate_event)
             return
@@ -143,21 +161,21 @@ class AgentOrchestrator:
         # 5. EXECUTION & VERIFICATION
         await self.execute_and_verify(incident)
 
-    async def execute_and_verify(self, incident: Incident):
+    async def execute_and_verify(self, incident: Incident, simulate_failure: bool = False):
         if not incident.proposedAction:
             return
 
         incident.status = "executing"
         tool_name = incident.proposedAction.tool.split("(")[0]
         
-        # Execute tool
+        # Execute tool through allowlisted registry
         try:
             tool_registry.execute(tool_name)
-        except Exception:
-            pass # Safe execution for demo
+        except Exception as e:
+            pass # Continue to verification
 
         incident.status = "verifying"
-        resolution = verification_agent.run(incident.proposedAction)
+        resolution = verification_agent.run(incident.proposedAction, simulate_failure=simulate_failure)
         incident.resolution = resolution
 
         await asyncio.sleep(0.3)
@@ -170,18 +188,32 @@ class AgentOrchestrator:
                 timestamp=datetime.now(timezone.utc),
                 agent="verification",
                 status="completed",
-                message=f"Verification successful: {resolution.verificationMethod} confirmed healthy system state. Incident resolved."
+                message=f"Verification successful: {resolution.verificationMethod} confirmed healthy system state. {resolution.summary or ''} Incident resolved."
             )
             await self._emit_event(incident, verify_event)
         else:
             incident.status = "escalated"
-            incident.escalationReason = "Post-remediation verification check failed."
+            incident.approvalRequired = False
+            incident.escalationReason = "Post-remediation verification check failed. Symptoms persist."
+            tkt_res = create_jira_escalation_ticket(
+                summary=f"Escalation after failed fix: {incident.title}",
+                priority="P1",
+                queue="Tier2_Support",
+                diagnostic_notes=incident.escalationReason
+            )
+            incident.escalation = Escalation(
+                reason=incident.escalationReason,
+                targetQueue="Tier2_IT_Support",
+                ticketId=tkt_res.get("ticket_id"),
+                priority="high",
+                diagnosticBrief="Automated fix failed verification probe."
+            )
             verify_event = AgentEvent(
                 id=f"evt-{uuid.uuid4().hex[:6]}",
                 timestamp=datetime.now(timezone.utc),
                 agent="verification",
                 status="failed",
-                message="Post-remediation verification failed. Escalating incident to human Tier-2."
+                message=f"Post-remediation verification failed. Escalating incident to human Tier-2. Ref: {tkt_res.get('ticket_id')}"
             )
             await self._emit_event(incident, verify_event)
 

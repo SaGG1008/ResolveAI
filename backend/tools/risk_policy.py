@@ -58,13 +58,17 @@ class RiskPolicy:
         Returns:
             True if approval is required
         """
-        # Check tool-specific override first
-        if tool_name in self.tool_approval_overrides:
-            return self.tool_approval_overrides[tool_name]
-
         # Use explicit risk level if provided
         if risk_level is not None:
             return risk_level in self.approval_required_levels
+
+        # Check tool-specific override
+        if tool_name in self.tool_approval_overrides:
+            return self.tool_approval_overrides[tool_name]
+
+        # Otherwise check the tool's registered risk level
+        if tool_name in self.tool_risk_overrides:
+            return self.tool_risk_overrides[tool_name] in self.approval_required_levels
 
         return False
 
@@ -141,5 +145,5 @@ risk_policy.add_tool_override("reset_vpn_token", RiskLevel.LOW, approval_require
 risk_policy.add_tool_override("restart_service", RiskLevel.MEDIUM, approval_required=False)
 risk_policy.add_tool_override("clear_dns_cache", RiskLevel.LOW, approval_required=False)
 risk_policy.add_tool_override("create_ticket", RiskLevel.MEDIUM, approval_required=False)
-risk_policy.add_tool_override("escalate_to_human", RiskLevel.HIGH, approval_required=False)
+risk_policy.add_tool_override("escalate_to_human", RiskLevel.HIGH, approval_required=True)
 risk_policy.add_tool_override("verify_resolution", RiskLevel.LOW, approval_required=False)
